@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+    <meta name="theme-color" content="#08091a">
+    <title>Online Chat</title>
+    <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+<div class="app">
+    <nav class="nav" aria-label="Main navigation"></nav>
+    <main class="page">
+        <div class="card fade-in center" id="landing">
+            <div class="hero-icon" style="margin-inline:auto">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+                </svg>
+            </div>
+            <h1 data-i18n="app.name">Online Chat</h1>
+            <p class="subtitle" data-i18n="app.tagline">Minecraft ⇄ Web chat bridge</p>
+            <div class="status-line" id="status">
+                <span class="dot"></span>
+                <span id="status-text" data-i18n="login.serverUnreachable">Cannot reach the server.</span>
+            </div>
+            <div class="row wrap mt-24" style="justify-content:center">
+                <a class="btn primary" href="/login.html" id="go-login" data-i18n="nav.login">Sign in</a>
+                <a class="btn ghost" href="/chat.html" id="go-chat" data-i18n="nav.chat">Chat</a>
+            </div>
+        </div>
+    </main>
+</div>
+<script src="/common.js"></script>
+<script src="/index.js"></script>
+</body>
+</html>

@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+    <meta name="theme-color" content="#08091a">
+    <title>Bind · Online Chat</title>
+    <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+<div class="app">
+    <nav class="nav" aria-label="Main navigation"></nav>
+    <main class="page">
+        <div class="card wide fade-in">
+            <div class="hero-icon">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/>
+                    <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/>
+                </svg>
+            </div>
+            <h1 data-i18n="bind.title">Bind Minecraft player</h1>
+            <p class="subtitle" data-i18n="bind.subtitle">Link your web account to your Minecraft account so messages appear under your in-game name.</p>
+
+            <!-- Current binding status -->
+            <section class="bind-grid" id="section-current">
+                <h2 class="small text-dim" style="margin:0;text-transform:uppercase;letter-spacing:.3px" data-i18n="bind.currentTitle">Current binding</h2>
+                <div id="current-body">
+                    <p class="text-mute small" data-i18n="bind.notBound">Not bound yet.</p>
+                </div>
+            </section>
+
+            <!-- Request form -->
+            <section class="bind-grid mt-24" id="section-request">
+                <form id="form-bind" novalidate>
+                    <div class="field">
+                        <label for="mc-name" data-i18n="bind.mcName">Minecraft username</label>
+                        <input class="input" id="mc-name" type="text" autocomplete="off" spellcheck="false"
+                               required minlength="3" maxlength="16"
+                               data-i18n-placeholder="bind.mcName.placeholder" placeholder="Steve">
+                    </div>
+                    <button class="btn primary block" type="submit" id="bind-submit">
+                        <span class="spinner"></span><span data-i18n="bind.submit">Request binding</span>
+                    </button>
+                </form>
+            </section>
+
+            <!-- Pending state -->
+            <section class="bind-grid mt-24 hidden" id="section-pending">
+                <div class="callout">
+                    <strong data-i18n="bind.pending">Waiting for player to click [Yes] in game…</strong>
+                    <p class="small mt-8" style="margin-bottom:0" data-i18n-html="bind.howto.3">
+                        A prompt appears in your in-game chat with a code and <strong>[Yes]</strong>/<strong>[No]</strong> buttons.
+                    </p>
+                </div>
+                <div class="countdown">
+                    <span class="code" id="pending-code">------</span>
+                    <progress id="pending-progress" max="100" value="100"></progress>
+                    <span class="small text-dim" id="pending-timer">—</span>
+                </div>
+                <button class="btn ghost block" type="button" id="cancel-bind" data-i18n="action.cancel">Cancel</button>
+            </section>
+
+            <!-- How-to -->
+            <section class="bind-grid mt-24">
+                <h2 class="small text-dim" style="margin:0;text-transform:uppercase;letter-spacing:.3px" data-i18n="bind.howto">How binding works</h2>
+                <ol class="small text-dim" style="margin:0;padding-left:18px;line-height:1.8">
+                    <li data-i18n-html="bind.howto.1">Enter your in-game name and click <strong>Request binding</strong>.</li>
+                    <li data-i18n-html="bind.howto.2">You must be <strong>online</strong> on the Minecraft server.</li>
+                    <li data-i18n-html="bind.howto.3">A prompt appears in your in-game chat with a code and <strong>[Yes]</strong>/<strong>[No]</strong> buttons.</li>
+                    <li data-i18n-html="bind.howto.4">Click <strong>[Yes]</strong>. The binding completes here automatically.</li>
+                </ol>
+            </section>
+
+            <div class="row wrap mt-24" style="justify-content:space-between">
+                <a class="btn ghost" href="/chat.html" data-i18n="bind.goChat">Go to chat</a>
+                <button class="btn danger hidden" type="button" id="unbind-btn" data-i18n="bind.unbind">Unbind</button>
+            </div>
+        </div>
+    </main>
+</div>
+<script src="/common.js"></script>
+<script src="/bind.js"></script>
+</body>
+</html>

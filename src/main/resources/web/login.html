@@ -1,0 +1,82 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+    <meta name="theme-color" content="#08091a">
+    <title>Sign in · Online Chat</title>
+    <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+<div class="app">
+    <nav class="nav" aria-label="Main navigation"></nav>
+    <main class="page">
+        <div class="card fade-in">
+            <div class="hero-icon">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/>
+                    <polyline points="10 17 15 12 10 7"/>
+                    <line x1="15" y1="12" x2="3" y2="12"/>
+                </svg>
+            </div>
+            <h1 data-i18n="login.title">Welcome back</h1>
+            <p class="subtitle" data-i18n="login.subtitle">Sign in to chat with players on the Minecraft server.</p>
+
+            <div class="tabs" role="tablist">
+                <button type="button" role="tab" id="tab-login" class="active" data-i18n="login.tab.login">Sign in</button>
+                <button type="button" role="tab" id="tab-register" data-i18n="login.tab.register">Create account</button>
+            </div>
+
+            <!-- Sign-in form -->
+            <form id="form-login" novalidate>
+                <div class="field">
+                    <label for="li-user" data-i18n="login.username">Username</label>
+                    <input class="input" id="li-user" name="username" type="text" autocomplete="username"
+                           required minlength="3" maxlength="32" pattern="[A-Za-z0-9_]+"
+                           data-i18n-placeholder="login.username">
+                </div>
+                <div class="field">
+                    <label for="li-pass" data-i18n="login.password">Password</label>
+                    <input class="input" id="li-pass" name="password" type="password" autocomplete="current-password" required>
+                </div>
+                <button class="btn primary block" type="submit" id="li-submit">
+                    <span class="spinner"></span><span data-i18n="login.submit">Sign in</span>
+                </button>
+            </form>
+
+            <!-- Register form -->
+            <form id="form-register" class="hidden" novalidate>
+                <div class="field">
+                    <label for="rg-user" data-i18n="login.username">Username</label>
+                    <input class="input" id="rg-user" name="username" type="text" autocomplete="username"
+                           required minlength="3" maxlength="32" pattern="[A-Za-z0-9_]+">
+                    <span class="hint" data-i18n="login.username.hint">3–32 characters: letters, digits, underscore.</span>
+                </div>
+                <div class="field">
+                    <label for="rg-pass" data-i18n="login.password">Password</label>
+                    <input class="input" id="rg-pass" name="password" type="password" autocomplete="new-password" required minlength="8">
+                    <span class="hint" id="rg-pass-hint" data-i18n="login.password.hint">At least 8 characters.</span>
+                </div>
+                <div class="field">
+                    <label for="rg-pass2" data-i18n="login.password2">Confirm password</label>
+                    <input class="input" id="rg-pass2" name="password2" type="password" autocomplete="new-password" required minlength="8">
+                </div>
+                <button class="btn primary block" type="submit" id="rg-submit">
+                    <span class="spinner"></span><span data-i18n="login.register">Create account</span>
+                </button>
+                <p class="small text-mute mt-12 center hidden" id="rg-closed" data-i18n="login.registrationClosed">
+                    Registration is closed on this server.
+                </p>
+            </form>
+
+            <div class="status-line mt-24" id="status">
+                <span class="dot"></span>
+                <span id="status-text" data-i18n="login.serverUnreachable">Cannot reach the server.</span>
+            </div>
+        </div>
+    </main>
+</div>
+<script src="/common.js"></script>
+<script src="/login.js"></script>
+</body>
+</html>

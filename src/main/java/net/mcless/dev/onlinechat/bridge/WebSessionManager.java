@@ -78,4 +78,30 @@ public class WebSessionManager {
     public int onlineCount() {
         return (int) sessions.values().stream().filter(Session::isAuthenticated).count();
     }
+
+    /** Total number of live WebSocket connections (authenticated or not). */
+    public int totalConnections() {
+        return sessions.size();
+    }
+
+    /** Number of live connections originating from the given IP (port-insensitive). */
+    public int connectionsFromIp(String ip) {
+        if (ip == null) return 0;
+        int n = 0;
+        for (Session s : sessions.values()) {
+            if (ip.equals(ipOf(s.remoteAddress))) n++;
+        }
+        return n;
+    }
+
+    /** Extracts the bare IP from a Netty remote-address string such as {@code /1.2.3.4:56789}. */
+    public static String ipOf(String remoteAddress) {
+        if (remoteAddress == null || remoteAddress.isBlank()) return "unknown";
+        String r = remoteAddress;
+        int slash = r.lastIndexOf('/');
+        if (slash >= 0) r = r.substring(slash + 1);
+        int colon = r.lastIndexOf(':');
+        if (colon >= 0) r = r.substring(0, colon);
+        return r.isEmpty() ? "unknown" : r;
+    }
 }

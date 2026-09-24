@@ -1,14 +1,19 @@
 # Online Chat — Minecraft ⇄ Web bridge (NeoForge 1.21.1)
 
+> Languages: **English** | [简体中文](README.zh-CN.md)
+
 A self-contained **HTTPS + WebSocket** chat platform embedded in your Minecraft server.
 Web users register, log in, bind their web account to their in-game account with a
 clickable **[Yes] / [No]** confirmation, and then chat with players in real time.
 
-* 🔐 TLS served from your own PEM material in `./ssl` — nothing leaves your machine.
+* 🔐 TLS served from your own PEM material (default folder `./ssl`, directory configurable) — nothing leaves your machine.
 * 🧑‍🤝‍🧑 Two-way bridge: in-game chat appears on the web, web chat appears in-game.
 * 🎨 Distinct prefixes: green `[In Game]` on the web, orange `[Web Chat]` in-game.
 * 📢 Optional bridging of non-player messages (join, quit, death, advancement).
 * ⚙️ Split configuration files (`onlinechat-common.toml` + `onlinechat-server.toml`).
+* 🛡️ Optional **2FA on join**: a player with it enabled is frozen until they confirm from a browser that is signed in to their bound web account.
+* 🌐 Every in-game line is translated **server-side** (`language = "en_us" | "zh_cn"`) — vanilla clients see it.
+* 🧩 The web front-end is extracted to `config/onlinechat/web/` on first start so you can restyle it without rebuilding the jar.
 * 🚫 Zero extra runtime dependencies — Netty and Gson are supplied by Minecraft itself.
 
 ---
@@ -23,6 +28,9 @@ clickable **[Yes] / [No]** confirmation, and then chat with players in real time
 | [docs/WEB_API.md](docs/WEB_API.md) | REST endpoints and WebSocket protocol reference |
 | [docs/SECURITY.md](docs/SECURITY.md) | Threat model, hardening checklist, data storage |
 | [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md) | Project layout and how to extend the mod |
+
+> 简体中文版文档见 [README.zh-CN.md](README.zh-CN.md) 与 `docs/zh/` 目录
+> （[安装](docs/zh/INSTALL.md)、[配置](docs/zh/CONFIGURATION.md)、[Web API](docs/zh/WEB_API.md)、[安全](docs/zh/SECURITY.md)、[开发](docs/zh/DEVELOPMENT.md)）。
 
 ---
 
@@ -39,18 +47,20 @@ clickable **[Yes] / [No]** confirmation, and then chat with players in real time
    ```powershell
    .\gradlew.bat build
    ```
-   The jar is written to `build/libs/onlinechat-1.0.0.jar`.
+   The jar is written to `build/libs/onlinechat-1.21.1-neoforge-0.0.1-alpha.jar`.
 3. **Install** it into your `mods/` folder (server and/or client — the web server only
    starts on the logical server side).
 4. **Start Minecraft** (dedicated server or single-player world opened to LAN — both work).
    The web server listens on `https://0.0.0.0:8443/` by default.
 5. **Open** `https://<your-host>:8443/` in a browser, register, log in.
-6. **Bind**: type your Minecraft username in the *Bind Minecraft player* panel.
+6. **Bind**: open **Account** and type your Minecraft username in the *Bind Minecraft player* panel.
    In game you will see:
    > **[OnlineChat]** Web user *alice* wants to bind to your Minecraft account. *(Code: X7K2QM)*
    > **[Yes] [No]**
    
    Click **[Yes]**. That's it — you can now talk to the server from your browser.
+7. *(Optional)* Set `twoFactor.enabled = true` and `twoFactor.publicUrl` in `onlinechat-server.toml`;
+   players can then flip the **Two-factor** switch on their Account page.
 
 ---
 
@@ -62,6 +72,7 @@ clickable **[Yes] / [No]** confirmation, and then chat with players in real time
 | Player *Steve* says "hello" | Vanilla `<Steve> hello` |
 | Web user *bob* connects to the WebSocket | `[OnlineChat] bob connected to the web chat` |
 | Binding confirmed | `[OnlineChat] Web user 'alice' bound to Steve.` |
+| *Steve* joins with 2FA on | `[OnlineChat] Two-factor login is enabled on your account. Open this link …` + clickable `https://…/2fa/auth/…` (frozen until confirmed) |
 
 The prefix text, colour and the whole line format are configurable — see
 [docs/CONFIGURATION.md](docs/CONFIGURATION.md#prefixes).
@@ -92,9 +103,13 @@ The prefix text, colour and the whole line format are configurable — see
 | Green `[In Game]` prefix on web for game senders | ✅ |
 | Configurable bridging of non-player messages (join/quit/death/advancement) | ✅ |
 | Split configuration (`common` + `server` TOML files) | ✅ |
-| Separate login / bind / chat pages | ✅ |
-| Bilingual UI + lang files (English & 简体中文) | ✅ |
-| Chat history replay on WebSocket connect | ✅ |
+| Separate login / account / chat pages | ✅ |
+| Account page: bind, change password, delete account (auto-unbinds) | ✅ |
+| Optional per-player **2FA on join** (browser confirmation, timeout kick) | ✅ |
+| Operator commands `/onlinechat account setpassword\|delete` | ✅ |
+| Bilingual UI + **server-side** in-game translation (English & 简体中文) | ✅ |
+| Web front-end extracted to `config/onlinechat/web/` for customisation | ✅ |
+| Chat history replay on WebSocket connect + paged archive | ✅ |
 | Login rate limiting per IP | ✅ |
 | CORS allow-list | ✅ |
 | Zero external runtime dependencies (Netty & Gson come from Minecraft) | ✅ |
@@ -115,9 +130,11 @@ The prefix text, colour and the whole line format are configurable — see
 ```
 ./ssl/                                    # TLS material (input)
 ./config/onlinechat-common.toml           # chat bridge settings (created on first run)
-./config/onlinechat-server.toml           # HTTPS + auth + storage settings (created on first run)
-./onlinechat/accounts.json                # web accounts, bindings (created on first run)
+./config/onlinechat-server.toml           # HTTPS + auth + storage + 2FA settings (created on first run)
+./config/onlinechat/web/                  # editable copy of the web UI + hidden .exist marker (created on first run)
+./onlinechat/accounts.json                # web accounts, bindings, 2FA flags (created on first run)
 ./onlinechat/token.secret                 # auto-generated HMAC secret (created on first run)
+./onlinechat/chat_history.jsonl           # append-only chat archive (created on first run)
 ```
 
 Never commit `./ssl`, `./onlinechat/accounts.json` or `./onlinechat/token.secret` to source control.

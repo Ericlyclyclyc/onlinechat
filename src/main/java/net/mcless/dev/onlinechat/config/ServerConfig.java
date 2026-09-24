@@ -11,12 +11,17 @@ import java.util.List;
 public class ServerConfig {
     private static final ModConfigSpec.Builder BUILDER = new ModConfigSpec.Builder();
 
+    public static final ModConfigSpec.ConfigValue<String> LANGUAGE;
+
     public static final ModConfigSpec.BooleanValue WEB_ENABLED;
     public static final ModConfigSpec.ConfigValue<String> HOST;
     public static final ModConfigSpec.IntValue PORT;
     public static final ModConfigSpec.BooleanValue HTTP_ENABLED;
     public static final ModConfigSpec.IntValue HTTP_PORT;
 
+    public static final ModConfigSpec.ConfigValue<String> CERT_DIR;
+    public static final ModConfigSpec.ConfigValue<String> CERT_FILE_NAME;
+    public static final ModConfigSpec.ConfigValue<String> KEY_FILE_NAME;
     public static final ModConfigSpec.ConfigValue<String> CERT_CHAIN_PATH;
     public static final ModConfigSpec.ConfigValue<String> PRIVATE_KEY_PATH;
     public static final ModConfigSpec.ConfigValue<String> PRIVATE_KEY_PASSWORD;
@@ -35,14 +40,33 @@ public class ServerConfig {
 
     public static final ModConfigSpec.ConfigValue<String> ACCOUNTS_FILE;
     public static final ModConfigSpec.IntValue CHAT_HISTORY_SIZE;
+    public static final ModConfigSpec.IntValue CHAT_PAGE_SIZE;
+    public static final ModConfigSpec.ConfigValue<String> CHAT_LOG_FILE;
+    public static final ModConfigSpec.ConfigValue<String> WEB_DIR;
+
+    public static final ModConfigSpec.BooleanValue TWO_FACTOR_ENABLED;
+    public static final ModConfigSpec.ConfigValue<String> TWO_FACTOR_PUBLIC_URL;
+    public static final ModConfigSpec.IntValue TWO_FACTOR_TIMEOUT_SECONDS;
 
     public static final ModConfigSpec.ConfigValue<List<? extends String>> ALLOWED_ORIGINS;
+
+    public static final ModConfigSpec.IntValue MAX_CONNECTIONS_PER_IP;
+    public static final ModConfigSpec.IntValue MAX_CONNECTIONS_TOTAL;
+    public static final ModConfigSpec.IntValue MAX_CHAT_MESSAGES_PER_MINUTE;
+    public static final ModConfigSpec.IntValue REGISTER_ATTEMPTS_PER_HOUR;
+    public static final ModConfigSpec.IntValue BIND_REQUESTS_PER_MINUTE;
 
     public static final ModConfigSpec.BooleanValue VERBOSE_LOGGING;
 
     public static final ModConfigSpec SPEC;
 
     static {
+        LANGUAGE = BUILDER
+                .comment("Language used for every in-game message this mod sends (chat prompts, command feedback).",
+                        "The server renders the text itself so vanilla clients without the mod see it translated.",
+                        "Must match a file in assets/onlinechat/lang/ (e.g. en_us, zh_cn). Falls back to en_us.")
+                .define("language", "en_us");
+
         WEB_ENABLED = BUILDER
                 .comment("Start the embedded HTTPS/WebSocket server when the Minecraft server starts.")
                 .define("enabled", true);
@@ -68,13 +92,30 @@ public class ServerConfig {
 
         BUILDER.push("tls");
 
+        CERT_DIR = BUILDER
+                .comment("Directory holding the TLS PEM files. Relative paths resolve against the Minecraft run directory.",
+                        "Used to locate the certificate and key whenever certChainPath / privateKeyPath are left blank.")
+                .define("certDir", "./ssl");
+
+        CERT_FILE_NAME = BUILDER
+                .comment("Certificate file name inside certDir (PEM leaf + intermediate chain, e.g. Let's Encrypt fullchain.pem).",
+                        "Ignored when certChainPath is set to a non-blank value.")
+                .define("certFileName", "fullchain.pem");
+
+        KEY_FILE_NAME = BUILDER
+                .comment("Private key file name inside certDir (PKCS#8 or PKCS#1).",
+                        "Ignored when privateKeyPath is set to a non-blank value.")
+                .define("keyFileName", "privkey.pem");
+
         CERT_CHAIN_PATH = BUILDER
-                .comment("Path to the PEM full-chain certificate. Relative paths resolve against the Minecraft run directory.")
-                .define("certChainPath", "./ssl/fullchain.pem");
+                .comment("Optional explicit path to the PEM certificate chain, overriding certDir + certFileName.",
+                        "Leave blank to use <certDir>/<certFileName>. Relative paths resolve against the run directory.")
+                .define("certChainPath", "");
 
         PRIVATE_KEY_PATH = BUILDER
-                .comment("Path to the PEM private key (PKCS#8 or PKCS#1). Relative paths resolve against the Minecraft run directory.")
-                .define("privateKeyPath", "./ssl/privkey.pem");
+                .comment("Optional explicit path to the PEM private key, overriding certDir + keyFileName.",
+                        "Leave blank to use <certDir>/<keyFileName>. Relative paths resolve against the run directory.")
+                .define("privateKeyPath", "");
 
         PRIVATE_KEY_PASSWORD = BUILDER
                 .comment("Password of the private key. Leave empty if the key is not encrypted.")
@@ -138,8 +179,46 @@ public class ServerConfig {
                 .define("accountsFile", "onlinechat/accounts.json");
 
         CHAT_HISTORY_SIZE = BUILDER
-                .comment("Number of recent chat messages kept in memory and replayed to newly connected web clients.")
-                .defineInRange("chatHistorySize", 200, 0, 5000);
+                .comment("Number of most recent chat messages cached in RAM. Older messages are not lost: they",
+                        "live in the append-only chat archive (chatLogFile) and are paged back on demand.")
+                .defineInRange("chatHistorySize", 300, 1, 100_000);
+
+        CHAT_PAGE_SIZE = BUILDER
+                .comment("Number of messages delivered per page: the initial batch replayed to a freshly",
+                        "connected web client, and the size of each 'scroll up to load more' request.")
+                .defineInRange("chatPageSize", 30, 1, 200);
+
+        CHAT_LOG_FILE = BUILDER
+                .comment("Location of the append-only chat archive (JSON Lines). Relative paths resolve against",
+                        "the run directory. Every message is written here; it doubles as a deployable backup.")
+                .define("chatLogFile", "onlinechat/chat_history.jsonl");
+
+        WEB_DIR = BUILDER
+                .comment("Directory the bundled web front-end (HTML/JS/CSS/locales) is extracted to on first start so it",
+                        "can be customised. Relative paths resolve against the run directory. Files here are served in",
+                        "preference to the copies inside the jar. The extraction only happens when the hidden marker",
+                        "file '.exist' is missing from the directory; delete it to re-extract the pristine defaults.")
+                .define("webDir", "config/onlinechat/web");
+
+        BUILDER.pop();
+
+        BUILDER.push("twoFactor");
+
+        TWO_FACTOR_ENABLED = BUILDER
+                .comment("Offer two-factor login protection to players. When enabled, a player whose bound web account",
+                        "has 2FA switched on is frozen after joining until they open the one-time link shown in chat",
+                        "from a browser that is signed in to that web account. Players without 2FA are unaffected.")
+                .define("enabled", false);
+
+        TWO_FACTOR_PUBLIC_URL = BUILDER
+                .comment("Public base URL of this web server as seen by players' browsers, e.g. https://play.example.com:8443",
+                        "It is prepended to the /2fa/auth/<token> path in the chat link. No trailing slash.",
+                        "Leave blank to fall back to https://<server-ip>:<port> which is rarely what you want.")
+                .define("publicUrl", "");
+
+        TWO_FACTOR_TIMEOUT_SECONDS = BUILDER
+                .comment("Seconds a frozen player has to complete the browser verification before being kicked.")
+                .defineInRange("timeoutSeconds", 120, 15, 600);
 
         BUILDER.pop();
 
@@ -152,6 +231,30 @@ public class ServerConfig {
                         List.of("*"),
                         () -> "*",
                         o -> o instanceof String);
+
+        BUILDER.pop();
+
+        BUILDER.push("limits");
+
+        MAX_CONNECTIONS_PER_IP = BUILDER
+                .comment("Maximum simultaneous WebSocket connections allowed from a single IP. 0 disables the limit.")
+                .defineInRange("maxConnectionsPerIp", 8, 0, 100_000);
+
+        MAX_CONNECTIONS_TOTAL = BUILDER
+                .comment("Maximum simultaneous WebSocket connections across all clients. 0 disables the limit.")
+                .defineInRange("maxConnectionsTotal", 200, 0, 1_000_000);
+
+        MAX_CHAT_MESSAGES_PER_MINUTE = BUILDER
+                .comment("Maximum chat messages a single web session may send per minute. 0 disables the limit.")
+                .defineInRange("maxChatMessagesPerMinute", 20, 0, 100_000);
+
+        REGISTER_ATTEMPTS_PER_HOUR = BUILDER
+                .comment("Maximum /api/register calls per IP per hour (anti account-flooding). 0 disables the limit.")
+                .defineInRange("registerAttemptsPerHour", 5, 0, 100_000);
+
+        BIND_REQUESTS_PER_MINUTE = BUILDER
+                .comment("Maximum binding requests a single web account may start per minute (anti popup-harassment). 0 disables the limit.")
+                .defineInRange("bindRequestsPerMinute", 3, 0, 100_000);
 
         BUILDER.pop();
 

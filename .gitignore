@@ -38,3 +38,12 @@ run/
 **/src/generated/**/.cache/
 repo/
 !**/src/**/repo/
+
+### OnlineChat secrets — NEVER commit these ###
+# TLS private material (cert + private key) loaded from the run/working directory.
+/ssl/
+# Web accounts, bindings and the auto-generated HMAC token secret.
+/onlinechat/
+# ...but never ignore anything that legitimately lives under src/.
+!**/src/**/ssl/
+!**/src/**/onlinechat/

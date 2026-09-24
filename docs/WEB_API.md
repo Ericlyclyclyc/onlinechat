@@ -1,5 +1,7 @@
 # Web API reference
 
+> Languages: **English** | [简体中文](zh/WEB_API.md)
+
 The mod exposes two surfaces on the same HTTPS listener:
 
 * A small **REST** API under `/api/*` for authentication, binding and status.
@@ -15,7 +17,8 @@ to `cors.allowedOrigins` in `onlinechat-server.toml`.
 
 ## Authentication model
 
-* Register or log in → receive a **token** (HMAC-SHA256 signed, `username.expiry.signature`).
+* Register or log in → receive a **token** (HMAC-SHA256 signed, `username.issuedAt.expiry.signature`).
+  Three-part tokens issued by older versions (`username.expiry.signature`) remain valid until they expire.
 * The server sets the token as an **`oc_token` cookie** (`HttpOnly; Secure; SameSite=Lax`)
   on `/api/login` and `/api/register`, so the bundled UI never touches the token in JS.
 * Pass the token on every subsequent request in any of (checked in this order):
@@ -57,6 +60,7 @@ config (prefix texts and colours).
   "onlinePlayers": 7,
   "maxPlayers": 20,
   "motd": "A Minecraft Server",
+  "twoFactor": false,
   "style": {
     "inGamePrefixText": "[In Game]",
     "inGamePrefixColor": "#2ecc71",
@@ -129,10 +133,15 @@ Requires auth. Returns the caller's account record.
   "mcName": "Steve",
   "mcUuid": "…",
   "mcOnline": true,
+  "twoFactorAvailable": false,
+  "twoFactor": false,
   "createdAt": 1710432000000,
   "lastLoginAt": 1710514800000
 }
 ```
+
+`twoFactorAvailable` mirrors `twoFactor.enabled` in the server config; `twoFactor` is this
+account's own opt-in flag.
 
 ### `POST /api/bind`
 
@@ -160,9 +169,94 @@ WebSocket event.
 
 ### `POST /api/unbind`
 
-Requires auth. Removes the caller's binding. No request body needed.
+Requires auth. Removes the caller's binding (and turns off 2FA for the account, since it
+no longer has a player to protect). No request body needed.
 
 Response: `{ "ok": true }`.
+
+### `POST /api/account/password`
+
+Requires auth. Changes the caller's password.
+
+Request:
+```json
+{ "current": "hunter2hunter2", "next": "correct-horse-battery" }
+```
+
+Response `200`: `{ "ok": true, "token": "…" }` — the new token is also written to the `oc_token`
+cookie. Changing the password bumps `lastLoginAt`, which invalidates **every** outstanding token
+and pushes a `force_logout` frame (`reason: "password_changed"`) to all live sockets of the
+account, including the caller's; the fresh token in the response keeps the calling browser signed
+in.
+
+Errors: `400` (validation / too short), `401` (current password wrong).
+
+### `POST /api/account/delete`
+
+Requires auth. Permanently deletes the caller's account.
+
+Request:
+```json
+{ "password": "hunter2hunter2" }
+```
+
+Side effects: any pending bind request is cancelled, the Minecraft binding is removed, a frozen
+2FA session for that player is released, live sockets receive `force_logout`
+(`reason: "account_deleted"`) and are closed, and the cookie is cleared.
+
+Response: `{ "ok": true }`. Errors: `401` (password wrong).
+
+### `POST /api/2fa/toggle`
+
+Requires auth. Player-side opt in/out of two-factor join protection.
+
+Request: `{ "enabled": true }`
+Response: `{ "ok": true, "twoFactor": true }`
+
+Errors: `403` (feature disabled by the admin), `400` (enabling without a bound player).
+
+### `GET /api/2fa/info?token=<token>`
+
+Public (the answer depends on whether the caller is signed in). Everything the confirmation page
+needs to render for a pending 2FA request:
+
+```json
+{
+  "ok": true,
+  "available": true,
+  "valid": true,
+  "authenticated": true,
+  "username": "alice",
+  "playerName": "Steve",
+  "expiresAt": 1710514920000,
+  "matches": true
+}
+```
+
+* `available` — `twoFactor.enabled` in the config.
+* `valid` — the token refers to a player who is currently frozen and waiting.
+* `authenticated` / `username` — whether the request carried a usable `oc_token` cookie and for whom.
+* `matches` — the signed-in account is the one bound to the waiting player. Only then can
+  `/api/2fa/verify` succeed.
+
+### `POST /api/2fa/verify`
+
+Requires auth. "Yes, it's me": releases the frozen player behind the token.
+
+Request: `{ "token": "…" }`
+
+| Status | `result` | Meaning |
+|--------|----------|---------|
+| `200` | `ok` | Player released. Token is single-use and now dead. |
+| `404` | `invalid_token` | Unknown, already used or expired token. |
+| `403` | `wrong_account` | Cookie belongs to a different account — the player was **kicked**. |
+| `503` | `unavailable` | Server not ready. |
+
+### `POST /api/2fa/reject`
+
+Requires auth. "That's not me": kicks the player waiting behind the token.
+
+Request: `{ "token": "…" }` — Response: `{ "ok": true }`, or `404` if the token is not pending.
 
 ### `GET /api/history`
 
@@ -194,23 +288,28 @@ Public. Lists in-game players and the total web-user count.
 
 ### Static files
 
-Everything not under `/api/` or `/ws` is served from the mod jar's `/web/` folder.
-The UI is a **multi-page** app:
+Everything not under `/api/` or `/ws` is served as a static file. Each request is resolved
+**first against `storage.webDir` on disk** (default `config/onlinechat/web`, extracted from the
+jar on first start — see [CONFIGURATION.md](CONFIGURATION.md#customising-the-web-front-end-webdir))
+and falls back to the copy bundled in the jar's `/web/` folder. The UI is a **multi-page** app:
 
 | URL | File | Purpose |
 |-----|------|---------|
 | `/` | `web/index.html` | Landing page — redirects to `/chat.html` if signed in, else shows a sign-in entry. |
-| `/login.html` | `web/login.html` | Sign-in / create-account (tabbed). |
-| `/bind.html` | `web/bind.html` | Binding management + live confirmation. |
+| `/login.html` | `web/login.html` | Sign-in / create-account (tabbed). Accepts `?next=` (return URL) and `?reason=` (`kicked`, `password_changed`, `account_deleted`) for the notice shown on arrival. |
+| `/account.html` | `web/account.html` | Account page: Minecraft binding + live confirmation, 2FA toggle, change password, delete account. |
+| `/bind.html` | — | Legacy URL, `302` → `/account.html`. |
+| `/2fa/auth/<token>` | `web/2fa.html` | Two-factor confirmation page linked from in-game chat. The token is read from the path by `2fa.js`. |
 | `/chat.html` | `web/chat.html` | Live chat bridge. |
 | `/style.css` | `web/style.css` | Shared stylesheet. |
-| `/common.js` | `web/common.js` | Shared library: API helpers, i18n, toast, nav, auth. |
-| `/index.js` `/login.js` `/bind.js` `/chat.js` | `web/*.js` | Per-page logic. |
+| `/common.js` | `web/common.js` | Shared library: API helpers, i18n, toast, modal, nav, auth. |
+| `/index.js` `/login.js` `/account.js` `/2fa.js` `/chat.js` | `web/*.js` | Per-page logic. |
 | `/locales/en.json` `/locales/zh-CN.json` | `web/locales/*.json` | UI translations. |
 
-Unknown paths fall back to `index.html`. Pages guard themselves: `bind.html` and
+Unknown paths fall back to `index.html`. Pages guard themselves: `account.html` and
 `chat.html` call `GET /api/me` on load and redirect to `/login.html?next=…` when the
-cookie is missing or expired.
+cookie is missing or expired; `2fa.html` does the same via `/api/2fa/info` so the user lands
+back on the confirmation page after signing in.
 
 ---
 
@@ -268,6 +367,8 @@ the client may try again with a fresh token.
 | `bind_expired` | `{ code, mcName }` | TTL elapsed without confirmation. |
 | `bind_error` | `{ error }` | Binding could not be initiated (player offline, unknown, already bound, …). |
 | `unbind_ok` | — | Binding removed. |
+| `force_logout` | `{ reason }` | This account's tokens were superseded; the server closes the socket right after. `reason` ∈ `login_elsewhere, password_changed, account_deleted`. The UI redirects to `/login.html?reason=…` (except for a password change it initiated itself). |
+| `server_shutdown` | — | The Minecraft server is stopping. Clients show a blocking notice and stop reconnecting. |
 | `pong` | `{ ts }` | Response to `ping`. |
 | `error` | `{ error }` | Generic error for malformed frames or unknown `type`. |
 

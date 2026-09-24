@@ -8,7 +8,7 @@
     <link rel="stylesheet" href="/style.css">
 </head>
 <body>
-<div class="app">
+<div class="app chat-page">
     <nav class="nav" aria-label="Main navigation"></nav>
     <main class="chat-shell">
         <section class="panel" aria-label="Chat">
@@ -17,7 +17,17 @@
                 <span class="spacer" style="flex:1"></span>
                 <span class="badge" id="conn-badge"><span class="dot"></span><span data-i18n="chat.connecting">Connecting…</span></span>
             </div>
-            <div class="panel-body" id="messages" role="log" aria-live="polite"></div>
+            <div class="chat-body">
+                <div class="panel-body" id="messages" role="log" aria-live="polite"></div>
+                <div class="load-more" id="load-more" aria-hidden="true"><span class="spinner"></span></div>
+                <button class="scroll-down" id="scroll-down" type="button"
+                        data-i18n-title="chat.scrollDown" title="Scroll to bottom" aria-label="Scroll to bottom">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"
+                         stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                        <path d="M12 5v14M19 12l-7 7-7-7"/>
+                    </svg>
+                </button>
+            </div>
             <form class="composer" id="composer" autocomplete="off">
                 <input class="input" id="input" type="text" maxlength="512"
                        data-i18n-placeholder="chat.placeholder" placeholder="Type a message…" required>
@@ -31,7 +41,7 @@
                 <div class="side-section" id="account-section">
                     <div class="kv"><span class="k" data-i18n="login.username">Username</span><span class="v" id="acc-name">—</span></div>
                     <div class="kv"><span class="k" data-i18n="bind.status.boundTo">Bound to</span><span class="v" id="acc-bound">—</span></div>
-                    <a class="btn ghost block mt-12" href="/bind.html" data-i18n="chat.side.manageBind">Manage binding</a>
+                    <a class="btn ghost block mt-12" href="/account.html" data-i18n="chat.side.manageAccount">Manage account</a>
                 </div>
                 <div class="side-section">
                     <h3 data-i18n="chat.side.players">Players online</h3>

@@ -17,6 +17,7 @@ import io.netty.handler.timeout.IdleStateHandler;
 import net.mcless.dev.onlinechat.OnlineChat;
 import net.mcless.dev.onlinechat.account.AccountManager;
 import net.mcless.dev.onlinechat.account.TokenService;
+import net.mcless.dev.onlinechat.auth.TwoFactorGuard;
 import net.mcless.dev.onlinechat.bridge.BindingManager;
 import net.mcless.dev.onlinechat.bridge.ChatBridge;
 import net.mcless.dev.onlinechat.bridge.WebSessionManager;
@@ -24,6 +25,9 @@ import net.mcless.dev.onlinechat.config.ServerConfig;
 
 import java.net.InetSocketAddress;
 import java.nio.file.Path;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 
 /**
@@ -36,22 +40,29 @@ public class WebServer {
     private final BindingManager bindings;
     private final ChatBridge bridge;
     private final WebSessionManager sessions;
+    private final TwoFactorGuard twoFactor;
+    private final WebAssets webAssets;
     private final Path runDirectory;
 
     private EventLoopGroup boss;
     private EventLoopGroup worker;
     private Channel serverChannel;   // HTTPS listener (default)
     private Channel httpChannel;     // plain-HTTP listener (optional)
+    /** Off-EventLoop pool for blocking work (PBKDF2 hashing, account file writes). */
+    private ExecutorService blockingPool;
     private volatile boolean running;
 
     public WebServer(Path runDirectory, AccountManager accounts, TokenService tokens,
-                     BindingManager bindings, ChatBridge bridge, WebSessionManager sessions) {
+                     BindingManager bindings, ChatBridge bridge, WebSessionManager sessions,
+                     TwoFactorGuard twoFactor, WebAssets webAssets) {
         this.runDirectory = runDirectory;
         this.accounts = accounts;
         this.tokens = tokens;
         this.bindings = bindings;
         this.bridge = bridge;
         this.sessions = sessions;
+        this.twoFactor = twoFactor;
+        this.webAssets = webAssets;
     }
 
     public synchronized void start() {
@@ -62,18 +73,29 @@ public class WebServer {
         }
         boss = new NioEventLoopGroup(1);
         worker = new NioEventLoopGroup();
+        blockingPool = new ThreadPoolExecutor(
+                2, Math.max(2, Math.min(8, Runtime.getRuntime().availableProcessors())),
+                60L, TimeUnit.SECONDS,
+                new LinkedBlockingQueue<>(512),
+                r -> { Thread t = new Thread(r, "OnlineChat-blocking"); t.setDaemon(true); return t; },
+                // Back-pressure: if the queue is saturated, run on the caller rather than reject the request.
+                new ThreadPoolExecutor.CallerRunsPolicy());
         String host = ServerConfig.HOST.get();
         boolean anyBound = false;
 
         // HTTPS listener — the default and recommended surface.
-        try {
-            SslContext sslCtx = SslContexts.buildServerContext(runDirectory);
-            int port = ServerConfig.PORT.get();
-            serverChannel = newBootstrap(sslCtx).bind(new InetSocketAddress(host, port)).sync().channel();
-            anyBound = true;
-            OnlineChat.LOGGER.info("[OnlineChat] HTTPS/WebSocket server listening on https://{}:{}/", host, port);
-        } catch (Exception e) {
-            OnlineChat.LOGGER.error("[OnlineChat] Unable to start the HTTPS listener", e);
+        // On first run (no PEM material yet) SslContexts creates the certificate directory and logs
+        // an actionable "configure SSL" guide instead of failing later with a bare stack trace.
+        if (SslContexts.prepareAndWarnIfMissing(runDirectory)) {
+            try {
+                SslContext sslCtx = SslContexts.buildServerContext(runDirectory);
+                int port = ServerConfig.PORT.get();
+                serverChannel = newBootstrap(sslCtx).bind(new InetSocketAddress(host, port)).sync().channel();
+                anyBound = true;
+                OnlineChat.LOGGER.info("[OnlineChat] HTTPS/WebSocket server listening on https://{}:{}/", host, port);
+            } catch (Exception e) {
+                OnlineChat.LOGGER.error("[OnlineChat] Unable to start the HTTPS listener", e);
+            }
         }
 
         // Optional plain-HTTP listener (unencrypted).
@@ -116,7 +138,7 @@ public class WebServer {
                         p.addLast("http-codec", new HttpServerCodec());
                         p.addLast("http-aggregator", new HttpObjectAggregator(1024 * 1024));
                         p.addLast("chunked", new ChunkedWriteHandler());
-                        p.addLast("api", new HttpApiHandler(accounts, tokens, bindings, bridge, sessions));
+                        p.addLast("api", new HttpApiHandler(accounts, tokens, bindings, bridge, sessions, twoFactor, webAssets, blockingPool));
                         p.addLast("ws", new WebSocketFrameHandler(accounts, tokens, bindings, bridge, sessions));
                     }
                 });
@@ -129,6 +151,7 @@ public class WebServer {
         httpChannel = closeQuietly(httpChannel);
         if (boss != null) { boss.shutdownGracefully(); boss = null; }
         if (worker != null) { worker.shutdownGracefully(); worker = null; }
+        if (blockingPool != null) { blockingPool.shutdownNow(); blockingPool = null; }
         OnlineChat.LOGGER.info("[OnlineChat] Web server stopped.");
     }
 

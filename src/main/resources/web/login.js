@@ -3,14 +3,25 @@
     'use strict';
     await OC.I18N.load();
 
-    // If already signed in, skip straight to chat.
-    const existing = await OC.Auth.me();
-    if (existing) {
-        const next = new URLSearchParams(location.search).get('next') || '/chat.html';
-        location.replace(next);
-        return;
+    const params = new URLSearchParams(location.search);
+    // Any force-logout reason means our cookie is stale: kicked/login_elsewhere, password_changed, account_deleted.
+    const reason = params.get('reason');
+    const kicked = !!reason;
+    const reasonKey = reason === 'password_changed' ? 'login.reason.passwordChanged'
+        : reason === 'account_deleted' ? 'login.reason.accountDeleted'
+        : 'login.kicked';
+
+    // If already signed in, skip straight to chat - unless we were just force-logged-out here, in
+    // which case a stale (now-invalid) cookie must not bounce the user back into the app.
+    if (!kicked) {
+        const existing = await OC.Auth.me();
+        if (existing) {
+            location.replace(params.get('next') || '/chat.html');
+            return;
+        }
     }
     OC.renderNav(null, null);
+    if (kicked) OC.Toast.warn(OC.I18N.t(reasonKey), 7000);
 
     // Fetch server status (also tells us whether registration is open).
     let registrationOpen = true;

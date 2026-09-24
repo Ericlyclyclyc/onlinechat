@@ -33,6 +33,10 @@ public class Account {
     @SerializedName("lastLoginAt")
     private long lastLoginAt;
 
+    /** Player opted in to the in-game two-factor check. Only meaningful while the account is bound. */
+    @SerializedName("twoFactorEnabled")
+    private boolean twoFactorEnabled;
+
     public Account() {}
 
     public Account(String username, String passwordHash, String passwordSalt, int iterations) {
@@ -66,6 +70,9 @@ public class Account {
 
     public long getLastLoginAt() { return lastLoginAt; }
     public void setLastLoginAt(long lastLoginAt) { this.lastLoginAt = lastLoginAt; }
+
+    public boolean isTwoFactorEnabled() { return twoFactorEnabled; }
+    public void setTwoFactorEnabled(boolean twoFactorEnabled) { this.twoFactorEnabled = twoFactorEnabled; }
 
     public boolean isBound() { return boundPlayerUuid != null; }
 }

@@ -5,11 +5,13 @@ import net.mcless.dev.onlinechat.OnlineChat;
 import net.mcless.dev.onlinechat.account.Account;
 import net.mcless.dev.onlinechat.account.AccountManager;
 import net.mcless.dev.onlinechat.config.ServerConfig;
+import net.mcless.dev.onlinechat.web.RateLimiter;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerPlayer;
 
 import java.security.SecureRandom;
 import java.util.Base64;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
@@ -52,6 +54,8 @@ public class BindingManager {
     private final Map<String, PendingBind> pending = new ConcurrentHashMap<>();
     private final AccountManager accounts;
     private final ChatBridge bridge;
+    /** Per-web-account limiter on bind requests, so a user cannot spam confirmation popups at an online player. */
+    private final RateLimiter bindLimiter = new RateLimiter(60_000L);
 
     public BindingManager(AccountManager accounts, ChatBridge bridge) {
         this.accounts = accounts;
@@ -60,6 +64,12 @@ public class BindingManager {
 
     public Optional<PendingBind> request(MinecraftServer server, String webUsername, String targetPlayerName) {
         purgeExpired();
+
+        if (!bindLimiter.allow(webUsername == null ? "" : webUsername.toLowerCase(Locale.ROOT),
+                ServerConfig.BIND_REQUESTS_PER_MINUTE.get())) {
+            OnlineChat.LOGGER.warn("[OnlineChat] Bind-request rate limit hit for web user '{}'", webUsername);
+            return Optional.empty();
+        }
 
         Account account = accounts.byUsername(webUsername).orElse(null);
         if (account == null) return Optional.empty();
@@ -130,6 +140,12 @@ public class BindingManager {
     }
 
     public int pendingCount() { return pending.size(); }
+
+    /** Drops every pending request started by {@code webUsername} (account deleted). */
+    public void cancelFor(String webUsername) {
+        if (webUsername == null) return;
+        pending.values().removeIf(pb -> pb.webUsername.equalsIgnoreCase(webUsername));
+    }
 
     private static String generateCode() {
         char[] out = new char[6];

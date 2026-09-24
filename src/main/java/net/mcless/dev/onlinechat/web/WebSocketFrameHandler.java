@@ -55,6 +55,9 @@ public class WebSocketFrameHandler extends SimpleChannelInboundHandler<WebSocket
     private final BindingManager bindings;
     private final ChatBridge bridge;
     private final WebSessionManager sessions;
+    /** Per-connection chat throttle (this handler lives for exactly one session/channel). */
+    private final RateLimiter chatLimiter = new RateLimiter(60_000L);
+    private volatile boolean warnedThrottle = false;
 
     public WebSocketFrameHandler(AccountManager accounts, TokenService tokens, BindingManager bindings,
                                  ChatBridge bridge, WebSessionManager sessions) {
@@ -67,16 +70,26 @@ public class WebSocketFrameHandler extends SimpleChannelInboundHandler<WebSocket
 
     @Override
     public void handlerAdded(ChannelHandlerContext ctx) {
+        // This handler is added at pipeline-init time, BEFORE the WebSocket upgrade creates the session
+        // attribute - so the session is null here and this is a no-op. HttpApiHandler calls
+        // onHandshakeComplete() once the upgrade succeeds (see handshakeWebSocket).
+        onHandshakeComplete(ctx);
+    }
+
+    /**
+     * Sends the {@code ready} hello and auto-authenticates from the token captured on the HTTP upgrade
+     * request (Cookie or Authorization header). Browsers cannot set custom headers on a WebSocket
+     * handshake, so this is the only way to authenticate a cookie session. Must run AFTER the upgrade,
+     * once the session attribute exists. Idempotent: safe to call more than once.
+     */
+    public void onHandshakeComplete(ChannelHandlerContext ctx) {
         WebSessionManager.Session s = ctx.channel().attr(SESSION_KEY).get();
-        if (s == null) return;
+        if (s == null || s.isAuthenticated()) return;
         JsonObject ready = new JsonObject();
         ready.addProperty("type", "ready");
         ready.addProperty("requiresAuth", true);
         bridge.sendTo(ctx.channel(), ready);
 
-        // Auto-authenticate from the token captured on the HTTP upgrade request
-        // (Cookie or Authorization header). Browsers cannot set custom headers on
-        // a WebSocket handshake, so this is the only way to authenticate a cookie session.
         if (s.handshakeToken != null && !s.handshakeToken.isBlank()) {
             String token = s.handshakeToken;
             s.handshakeToken = null;
@@ -117,11 +130,13 @@ public class WebSocketFrameHandler extends SimpleChannelInboundHandler<WebSocket
         }
         bridge.sendTo(ctx.channel(), o);
 
+        var page = bridge.recentPage(ServerConfig.CHAT_PAGE_SIZE.get());
         JsonObject hist = new JsonObject();
         hist.addProperty("type", "history");
         var arr = new com.google.gson.JsonArray();
-        bridge.historySnapshot().forEach(arr::add);
+        page.messages().forEach(arr::add);
         hist.add("messages", arr);
+        hist.addProperty("hasMore", page.hasMore());
         bridge.sendTo(ctx.channel(), hist);
 
         if (sessions.byUsername(acc.getUsername()).size() == 1) {
@@ -203,6 +218,12 @@ public class WebSocketFrameHandler extends SimpleChannelInboundHandler<WebSocket
 
     private void handleChat(ChannelHandlerContext ctx, WebSessionManager.Session session, JsonObject msg) {
         if (!session.isAuthenticated()) { sendError(ctx, "Authenticate first"); return; }
+        if (!chatLimiter.allow("chat", ServerConfig.MAX_CHAT_MESSAGES_PER_MINUTE.get())) {
+            // Warn once, then silently drop further spam so we do not flood the client with errors.
+            if (!warnedThrottle) { warnedThrottle = true; sendError(ctx, "You are sending messages too quickly"); }
+            return;
+        }
+        warnedThrottle = false;
         String text = msg.has("text") ? msg.get("text").getAsString() : "";
         bridge.handleWebChat(session, text);
     }
@@ -240,11 +261,13 @@ public class WebSocketFrameHandler extends SimpleChannelInboundHandler<WebSocket
 
     private void handleHistory(ChannelHandlerContext ctx, WebSessionManager.Session session) {
         if (!session.isAuthenticated()) { sendError(ctx, "Authenticate first"); return; }
+        var page = bridge.recentPage(ServerConfig.CHAT_PAGE_SIZE.get());
         JsonObject o = new JsonObject();
         o.addProperty("type", "history");
         var arr = new com.google.gson.JsonArray();
-        bridge.historySnapshot().forEach(arr::add);
+        page.messages().forEach(arr::add);
         o.add("messages", arr);
+        o.addProperty("hasMore", page.hasMore());
         bridge.sendTo(ctx.channel(), o);
     }
 

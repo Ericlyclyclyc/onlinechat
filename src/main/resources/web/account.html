@@ -1,0 +1,139 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+    <meta name="theme-color" content="#08091a">
+    <title>Account · Online Chat</title>
+    <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+<div class="app">
+    <nav class="nav" aria-label="Main navigation"></nav>
+    <main class="page">
+        <div class="card wide fade-in">
+            <div class="hero-icon">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
+                    <circle cx="12" cy="7" r="4"/>
+                </svg>
+            </div>
+            <h1 data-i18n="account.title">Account</h1>
+            <p class="subtitle" data-i18n="account.subtitle">Manage your Minecraft binding, two-factor protection and password.</p>
+
+            <!-- ───────── Binding ───────── -->
+            <section class="bind-grid" id="section-current">
+                <h2 class="section-title" data-i18n="bind.currentTitle">Current binding</h2>
+                <div id="current-body">
+                    <p class="text-mute small" data-i18n="bind.notBound">Not bound yet.</p>
+                </div>
+                <div class="row end">
+                    <button class="btn danger hidden" type="button" id="unbind-btn" data-i18n="bind.unbind">Unbind</button>
+                </div>
+            </section>
+
+            <!-- Request form -->
+            <section class="bind-grid mt-16" id="section-request">
+                <form id="form-bind" novalidate>
+                    <div class="field">
+                        <label for="mc-name" data-i18n="bind.mcName">Minecraft username</label>
+                        <input class="input" id="mc-name" type="text" autocomplete="off" spellcheck="false"
+                               required minlength="3" maxlength="16"
+                               data-i18n-placeholder="bind.mcName.placeholder" placeholder="Steve">
+                    </div>
+                    <button class="btn primary block" type="submit" id="bind-submit">
+                        <span class="spinner"></span><span data-i18n="bind.submit">Request binding</span>
+                    </button>
+                </form>
+                <details class="small text-dim">
+                    <summary data-i18n="bind.howto">How binding works</summary>
+                    <ol style="margin:8px 0 0;padding-left:18px;line-height:1.8">
+                        <li data-i18n-html="bind.howto.1">Enter your in-game name and click <strong>Request binding</strong>.</li>
+                        <li data-i18n-html="bind.howto.2">You must be <strong>online</strong> on the Minecraft server.</li>
+                        <li data-i18n-html="bind.howto.3">A prompt appears in your in-game chat with a code and <strong>[Yes]</strong>/<strong>[No]</strong> buttons.</li>
+                        <li data-i18n-html="bind.howto.4">Click <strong>[Yes]</strong>. The binding completes here automatically.</li>
+                    </ol>
+                </details>
+            </section>
+
+            <!-- Pending state -->
+            <section class="bind-grid mt-16 hidden" id="section-pending">
+                <div class="callout">
+                    <strong data-i18n="bind.pending">Waiting for player to click [Yes] in game…</strong>
+                    <p class="small mt-8" style="margin-bottom:0" data-i18n-html="bind.howto.3">
+                        A prompt appears in your in-game chat with a code and <strong>[Yes]</strong>/<strong>[No]</strong> buttons.
+                    </p>
+                </div>
+                <div class="countdown">
+                    <span class="code" id="pending-code">------</span>
+                    <progress id="pending-progress" max="100" value="100"></progress>
+                    <span class="small text-dim" id="pending-timer">—</span>
+                </div>
+                <button class="btn ghost block" type="button" id="cancel-bind" data-i18n="action.cancel">Cancel</button>
+            </section>
+
+            <!-- ───────── Two-factor ───────── -->
+            <section class="bind-grid mt-24" id="section-2fa">
+                <h2 class="section-title" data-i18n="account.twofa.title">Two-factor sign-in</h2>
+                <label class="switch-row" id="twofa-row">
+                    <div class="grow">
+                        <div class="switch-label" data-i18n="account.twofa.label">Require web confirmation when joining the server</div>
+                        <div class="small text-mute" id="twofa-hint" data-i18n="account.twofa.hint">After joining, you are frozen until you open the link shown in chat and confirm from this signed-in browser.</div>
+                    </div>
+                    <span class="switch">
+                        <input type="checkbox" id="twofa-toggle">
+                        <span class="slider"></span>
+                    </span>
+                </label>
+                <p class="callout warn small hidden" id="twofa-unavailable" data-i18n="account.twofa.unavailable">The server administrator has not enabled two-factor authentication.</p>
+                <p class="callout small hidden" id="twofa-needbind" data-i18n="account.twofa.needBind">Bind a Minecraft player first to enable two-factor sign-in.</p>
+            </section>
+
+            <!-- ───────── Password ───────── -->
+            <section class="bind-grid mt-24" id="section-password">
+                <h2 class="section-title" data-i18n="account.password.title">Change password</h2>
+                <form id="form-password" novalidate autocomplete="off">
+                    <div class="field">
+                        <label for="pw-current" data-i18n="account.password.current">Current password</label>
+                        <input class="input" id="pw-current" type="password" autocomplete="current-password" required>
+                    </div>
+                    <div class="field">
+                        <label for="pw-next" data-i18n="account.password.next">New password</label>
+                        <input class="input" id="pw-next" type="password" autocomplete="new-password" required minlength="6">
+                        <span class="hint" id="pw-hint" data-i18n="login.password.hint">At least 6 characters.</span>
+                    </div>
+                    <div class="field">
+                        <label for="pw-next2" data-i18n="account.password.next2">Confirm new password</label>
+                        <input class="input" id="pw-next2" type="password" autocomplete="new-password" required minlength="6">
+                    </div>
+                    <button class="btn primary block" type="submit" id="pw-submit">
+                        <span class="spinner"></span><span data-i18n="account.password.submit">Update password</span>
+                    </button>
+                </form>
+            </section>
+
+            <!-- ───────── Danger zone ───────── -->
+            <section class="bind-grid mt-24 danger-zone" id="section-delete">
+                <h2 class="section-title text-err" data-i18n="account.delete.title">Delete account</h2>
+                <p class="small text-dim" style="margin:0" data-i18n="account.delete.body">Deleting your account unbinds your Minecraft player, turns off two-factor sign-in and signs you out everywhere. This cannot be undone.</p>
+                <form id="form-delete" novalidate autocomplete="off">
+                    <div class="field">
+                        <label for="del-password" data-i18n="account.delete.password">Confirm with your password</label>
+                        <input class="input" id="del-password" type="password" autocomplete="current-password" required>
+                    </div>
+                    <button class="btn danger block" type="submit" id="del-submit">
+                        <span class="spinner"></span><span data-i18n="account.delete.submit">Delete my account</span>
+                    </button>
+                </form>
+            </section>
+
+            <div class="row wrap mt-24">
+                <a class="btn ghost" href="/chat.html" data-i18n="bind.goChat">Go to chat</a>
+            </div>
+        </div>
+    </main>
+</div>
+<script src="/common.js"></script>
+<script src="/account.js"></script>
+</body>
+</html>

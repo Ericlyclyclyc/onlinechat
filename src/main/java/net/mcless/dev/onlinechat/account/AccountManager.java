@@ -10,6 +10,7 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
+import java.nio.file.attribute.PosixFilePermissions;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
@@ -37,26 +38,51 @@ public class AccountManager {
     }
 
     public void load() {
-        try {
-            if (!Files.exists(storageFile)) {
-                Files.createDirectories(storageFile.getParent());
+        if (Files.exists(storageFile)) {
+            if (tryLoad(storageFile)) {
+                restrictPermissions(storageFile);
+                return;
+            }
+            OnlineChat.LOGGER.error("[OnlineChat] accounts file {} is corrupt or unreadable; trying the .bak backup", storageFile);
+            Path bak = storageFile.resolveSibling(storageFile.getFileName() + ".bak");
+            if (Files.exists(bak) && tryLoad(bak)) {
+                OnlineChat.LOGGER.info("[OnlineChat] Recovered {} account(s) from backup {}; rewriting the primary file", byUsername.size(), bak);
                 save();
                 return;
             }
-            Account[] list = GSON.fromJson(Files.readString(storageFile, StandardCharsets.UTF_8), Account[].class);
+            // Both primary and backup are unusable. Leave them on disk untouched so an operator can
+            // inspect/recover manually, and continue with an empty in-memory set. Deliberately NOT calling
+            // save() here, which would overwrite the (possibly recoverable) corrupt file with an empty list.
+            OnlineChat.LOGGER.error("[OnlineChat] Backup recovery failed; starting with an empty account set. " +
+                    "The corrupt files were left untouched for manual recovery.");
+            return;
+        }
+        try {
+            Files.createDirectories(storageFile.getParent());
+            save();
+        } catch (Exception e) {
+            OnlineChat.LOGGER.error("[OnlineChat] Failed to create initial accounts file {}", storageFile, e);
+        }
+    }
+
+    /** Attempts to parse {@code file} into the in-memory maps. Returns false on any failure or empty parse. */
+    private boolean tryLoad(Path file) {
+        try {
+            Account[] list = GSON.fromJson(Files.readString(file, StandardCharsets.UTF_8), Account[].class);
+            if (list == null) return false;
             byUsername.clear();
             usernameByPlayerUuid.clear();
-            if (list != null) {
-                for (Account a : list) {
-                    byUsername.put(a.getUsername().toLowerCase(Locale.ROOT), a);
-                    if (a.getBoundPlayerUuid() != null) {
-                        usernameByPlayerUuid.put(a.getBoundPlayerUuid(), a.getUsername());
-                    }
+            for (Account a : list) {
+                if (a == null || a.getUsername() == null) continue;
+                byUsername.put(a.getUsername().toLowerCase(Locale.ROOT), a);
+                if (a.getBoundPlayerUuid() != null) {
+                    usernameByPlayerUuid.put(a.getBoundPlayerUuid(), a.getUsername());
                 }
             }
-            OnlineChat.LOGGER.info("[OnlineChat] Loaded {} web account(s) from {}", byUsername.size(), storageFile);
+            OnlineChat.LOGGER.info("[OnlineChat] Loaded {} web account(s) from {}", byUsername.size(), file);
+            return true;
         } catch (Exception e) {
-            OnlineChat.LOGGER.error("[OnlineChat] Failed to load accounts from {}", storageFile, e);
+            return false;
         }
     }
 
@@ -69,14 +95,38 @@ public class AccountManager {
                 List<Account> all = new ArrayList<>(byUsername.values());
                 Path tmp = storageFile.resolveSibling(storageFile.getFileName() + ".tmp");
                 Files.writeString(tmp, GSON.toJson(all), StandardCharsets.UTF_8);
+                restrictPermissions(tmp);
+                // Keep a one-generation backup of the previous good state before overwriting it.
+                if (Files.exists(storageFile)) {
+                    try {
+                        Path bak = storageFile.resolveSibling(storageFile.getFileName() + ".bak");
+                        Files.copy(storageFile, bak, StandardCopyOption.REPLACE_EXISTING);
+                        restrictPermissions(bak);
+                    } catch (IOException backupFail) {
+                        OnlineChat.LOGGER.warn("[OnlineChat] Unable to write the accounts .bak backup", backupFail);
+                    }
+                }
                 try {
                     Files.move(tmp, storageFile, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
                 } catch (IOException atomicFail) {
                     Files.move(tmp, storageFile, StandardCopyOption.REPLACE_EXISTING);
                 }
+                restrictPermissions(storageFile);
             } catch (Exception e) {
                 OnlineChat.LOGGER.error("[OnlineChat] Failed to save accounts to {}", storageFile, e);
             }
+        }
+    }
+
+    /**
+     * Best-effort restriction of a file to owner read/write only (POSIX {@code 0600}). On filesystems
+     * without POSIX permission support (e.g. Windows NTFS) this is a silent no-op.
+     */
+    private static void restrictPermissions(Path file) {
+        try {
+            Files.setPosixFilePermissions(file, PosixFilePermissions.fromString("rw-------"));
+        } catch (UnsupportedOperationException | IOException ignored) {
+            // Non-POSIX filesystem; nothing more we can do portably.
         }
     }
 
@@ -121,6 +171,7 @@ public class AccountManager {
             if (other != null) {
                 other.setBoundPlayerUuid(null);
                 other.setBoundPlayerName(null);
+                other.setTwoFactorEnabled(false);
             }
         }
         // Remove previous binding for this account, if any.
@@ -139,7 +190,38 @@ public class AccountManager {
         }
         account.setBoundPlayerUuid(null);
         account.setBoundPlayerName(null);
+        // 2FA protects a bound player; without a binding there is nothing left to protect.
+        account.setTwoFactorEnabled(false);
         save();
+    }
+
+    /** Replaces the password with a freshly salted hash. The caller is responsible for revoking sessions. */
+    public void setPassword(Account account, String rawPassword) {
+        String salt = PasswordHasher.newSalt();
+        int iterations = ServerConfig.PBKDF2_ITERATIONS.get();
+        account.setPasswordSalt(salt);
+        account.setPbkdf2Iterations(iterations);
+        account.setPasswordHash(PasswordHasher.hash(rawPassword, salt, iterations));
+        // Bumping lastLoginAt supersedes every token issued before this instant (see TokenService).
+        account.setLastLoginAt(System.currentTimeMillis());
+        save();
+    }
+
+    public void setTwoFactor(Account account, boolean enabled) {
+        account.setTwoFactorEnabled(enabled && account.isBound());
+        save();
+    }
+
+    /** Removes the account and its player binding. Returns true if it existed. */
+    public boolean delete(Account account) {
+        if (account == null || account.getUsername() == null) return false;
+        String normalized = account.getUsername().toLowerCase(Locale.ROOT);
+        Account removed = byUsername.remove(normalized);
+        if (removed == null) return false;
+        UUID uuid = removed.getBoundPlayerUuid();
+        if (uuid != null) usernameByPlayerUuid.remove(uuid, removed.getUsername());
+        save();
+        return true;
     }
 
     public void touchLogin(Account account) {

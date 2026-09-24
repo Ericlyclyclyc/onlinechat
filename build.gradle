@@ -32,7 +32,9 @@ repositories {
 }
 
 base {
-    archivesName = mod_id
+    // NeoForge-style artifact name: <modid>-<mcversion>-<loader>-<modversion>.jar
+    // e.g. onlinechat-1.21.1-neoforge-0.0.1-alpha.jar
+    archivesName = "${mod_id}-${minecraft_version}-neoforge"
 }
 
 // Mojang ships Java 21 to end users in 1.21.1, so mods should target Java 21.
@@ -117,13 +119,24 @@ configurations {
 }
 
 dependencies {
-    // Netty is provided at runtime by Minecraft itself; we only need it visible on the compile classpath.
-    // Versions match Minecraft 1.21.1's bundled Netty so nothing is shaded into the mod jar.
+    // Netty's core modules ARE provided at runtime by Minecraft itself, so they only need to be visible on
+    // the compile classpath; nothing is shaded into the mod jar. Versions match MC 1.21.1's bundled Netty.
     compileOnly 'io.netty:netty-buffer:4.1.97.Final'
     compileOnly 'io.netty:netty-common:4.1.97.Final'
     compileOnly 'io.netty:netty-transport:4.1.97.Final'
     compileOnly 'io.netty:netty-handler:4.1.97.Final'
     compileOnly 'io.netty:netty-codec:4.1.97.Final'
+
+    // netty-codec-http (io.netty.handler.codec.http.* and .websocketx.*) is NOT bundled by Minecraft.
+    // compileOnly works in the dev workspace but throws NoClassDefFoundError: HttpServerCodec on a real
+    // server, breaking BOTH the HTTPS and plain-HTTP listeners. Ship it inside the mod jar via JarInJar.
+    // transitive = false: its own dependencies (buffer/codec/common/handler/transport/unix-common) are
+    // already provided by Minecraft at the same 4.1.97.Final, so bundling only this artifact avoids
+    // duplicate Netty classes on the runtime classpath.
+    jarJar('io.netty:netty-codec-http:4.1.97.Final') {
+        transitive = false
+    }
+    // Also keep it on the compile classpath (harmless if jarJar already contributes it there).
     compileOnly 'io.netty:netty-codec-http:4.1.97.Final'
 
     // Example optional mod dependency with JEI

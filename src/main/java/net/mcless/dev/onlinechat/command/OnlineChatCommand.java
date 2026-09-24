@@ -5,7 +5,10 @@ import com.mojang.brigadier.arguments.StringArgumentType;
 import com.mojang.brigadier.context.CommandContext;
 import net.mcless.dev.onlinechat.OnlineChat;
 import net.mcless.dev.onlinechat.account.Account;
+import net.mcless.dev.onlinechat.auth.TwoFactorGuard;
 import net.mcless.dev.onlinechat.bridge.BindingManager;
+import net.mcless.dev.onlinechat.config.ServerConfig;
+import net.mcless.dev.onlinechat.i18n.Lang;
 import net.minecraft.ChatFormatting;
 import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.commands.Commands;
@@ -23,9 +26,12 @@ import java.util.Optional;
  *   <li>{@code /onlinechat bind confirm <code>} — run automatically when a player clicks [Yes]</li>
  *   <li>{@code /onlinechat bind deny <code>}    — run automatically when a player clicks [No]</li>
  *   <li>{@code /onlinechat status}              — show current binding status (player only)</li>
- *   <li>{@code /onlinechat unbind}              — remove your binding (player only, op-only fallback)</li>
- *   <li>{@code /onlinechat reload}              — op-only, restart the web server with fresh config</li>
+ *   <li>{@code /onlinechat unbind}              — remove your binding (player only)</li>
+ *   <li>{@code /onlinechat reload}              — op-only, reload language + restart the web server</li>
+ *   <li>{@code /onlinechat account setpassword <user> <password>} — op-only, reset a web account password</li>
+ *   <li>{@code /onlinechat account delete <user>} — op-only, delete a web account (unbinds its player)</li>
  * </ul>
+ * All text is rendered server-side through {@link Lang} so vanilla clients see it in the configured language.
  */
 public class OnlineChatCommand {
 
@@ -43,43 +49,46 @@ public class OnlineChatCommand {
                 .then(Commands.literal("unbind").executes(OnlineChatCommand::unbind))
                 .then(Commands.literal("reload")
                         .requires(src -> src.hasPermission(2))
-                        .executes(OnlineChatCommand::reload)));
+                        .executes(OnlineChatCommand::reload))
+                .then(Commands.literal("account")
+                        .requires(src -> src.hasPermission(2))
+                        .then(Commands.literal("setpassword")
+                                .then(Commands.argument("username", StringArgumentType.word())
+                                        .then(Commands.argument("password", StringArgumentType.greedyString())
+                                                .executes(OnlineChatCommand::accountSetPassword))))
+                        .then(Commands.literal("delete")
+                                .then(Commands.argument("username", StringArgumentType.word())
+                                        .executes(OnlineChatCommand::accountDelete)))));
     }
 
     /** Sent by {@link BindingManager} when a web user requests a binding. */
     public static void sendBindPrompt(ServerPlayer player, String webUsername, String code) {
-        MutableComponent header = Component.literal("[OnlineChat] ")
-                .withStyle(ChatFormatting.GOLD, ChatFormatting.BOLD);
-        MutableComponent body = Component.literal("Web user ")
-                .withStyle(ChatFormatting.YELLOW)
-                .append(Component.literal("'" + webUsername + "'").withStyle(ChatFormatting.AQUA))
-                .append(Component.literal(" wants to bind to your Minecraft account. ")
-                        .withStyle(ChatFormatting.YELLOW))
-                .append(Component.literal("(Code: " + code + ")").withStyle(ChatFormatting.GRAY));
+        MutableComponent body = Lang.component("onlinechat.command.bind.prompt",
+                net.minecraft.network.chat.Style.EMPTY.withColor(ChatFormatting.YELLOW),
+                Component.literal("'" + webUsername + "'").withStyle(ChatFormatting.AQUA),
+                Lang.text("onlinechat.command.bind.code", code).withStyle(ChatFormatting.GRAY));
 
-        MutableComponent yes = Component.literal(" [Yes] ")
+        MutableComponent yes = Component.literal(" ").append(Lang.text("onlinechat.command.bind.yes")).append(" ")
                 .withStyle(style -> style
                         .withColor(ChatFormatting.GREEN)
                         .withBold(true)
                         .withClickEvent(new ClickEvent(ClickEvent.Action.RUN_COMMAND, "/onlinechat bind confirm " + code))
-                        .withHoverEvent(new HoverEvent(HoverEvent.Action.SHOW_TEXT,
-                                Component.literal("Click to accept this binding"))));
-        MutableComponent no = Component.literal(" [No] ")
+                        .withHoverEvent(new HoverEvent(HoverEvent.Action.SHOW_TEXT, Lang.text("onlinechat.command.bind.yes.hover"))));
+        MutableComponent no = Component.literal(" ").append(Lang.text("onlinechat.command.bind.no")).append(" ")
                 .withStyle(style -> style
                         .withColor(ChatFormatting.RED)
                         .withBold(true)
                         .withClickEvent(new ClickEvent(ClickEvent.Action.RUN_COMMAND, "/onlinechat bind deny " + code))
-                        .withHoverEvent(new HoverEvent(HoverEvent.Action.SHOW_TEXT,
-                                Component.literal("Click to reject this binding"))));
+                        .withHoverEvent(new HoverEvent(HoverEvent.Action.SHOW_TEXT, Lang.text("onlinechat.command.bind.no.hover"))));
 
-        player.sendSystemMessage(header.copy().append(body));
+        player.sendSystemMessage(prefix().withStyle(ChatFormatting.BOLD).append(body));
         player.sendSystemMessage(Component.literal("  ").append(yes).append(no));
     }
 
     private static int confirmBind(CommandContext<CommandSourceStack> ctx) {
         ServerPlayer player = ctx.getSource().getPlayer();
         if (player == null) {
-            ctx.getSource().sendFailure(Component.literal("This command can only be used by players."));
+            ctx.getSource().sendFailure(Lang.text("onlinechat.command.playerOnly"));
             return 0;
         }
         String code = StringArgumentType.getString(ctx, "code");
@@ -88,16 +97,11 @@ public class OnlineChatCommand {
         BindingManager bindings = runtime.getBindings();
         Optional<BindingManager.PendingBind> opt = bindings.confirm(player.getServer(), player, code);
         if (opt.isEmpty()) {
-            player.sendSystemMessage(Component.literal("[OnlineChat] ")
-                    .withStyle(ChatFormatting.GOLD)
-                    .append(Component.literal("That binding code is invalid or expired.").withStyle(ChatFormatting.RED)));
+            player.sendSystemMessage(prefix().append(Lang.text("onlinechat.command.bind.expired").withStyle(ChatFormatting.RED)));
             return 0;
         }
         BindingManager.PendingBind pb = opt.get();
-        player.sendSystemMessage(Component.literal("[OnlineChat] ")
-                .withStyle(ChatFormatting.GOLD)
-                .append(Component.literal("Your account is now bound to web user '" + pb.webUsername + "'.")
-                        .withStyle(ChatFormatting.GREEN)));
+        player.sendSystemMessage(prefix().append(Lang.text("onlinechat.command.bind.confirmed", pb.webUsername).withStyle(ChatFormatting.GREEN)));
         runtime.notifyWebBindResult(pb, true, null);
         return 1;
     }
@@ -110,15 +114,11 @@ public class OnlineChatCommand {
         if (runtime == null) return 0;
         Optional<BindingManager.PendingBind> opt = runtime.getBindings().deny(player, code);
         if (opt.isEmpty()) {
-            player.sendSystemMessage(Component.literal("[OnlineChat] ")
-                    .withStyle(ChatFormatting.GOLD)
-                    .append(Component.literal("That binding code is invalid or expired.").withStyle(ChatFormatting.RED)));
+            player.sendSystemMessage(prefix().append(Lang.text("onlinechat.command.bind.expired").withStyle(ChatFormatting.RED)));
             return 0;
         }
         BindingManager.PendingBind pb = opt.get();
-        player.sendSystemMessage(Component.literal("[OnlineChat] ")
-                .withStyle(ChatFormatting.GOLD)
-                .append(Component.literal("Binding request from '" + pb.webUsername + "' denied.").withStyle(ChatFormatting.YELLOW)));
+        player.sendSystemMessage(prefix().append(Lang.text("onlinechat.command.bind.denied", pb.webUsername).withStyle(ChatFormatting.YELLOW)));
         runtime.notifyWebBindResult(pb, false, "denied");
         return 1;
     }
@@ -126,23 +126,21 @@ public class OnlineChatCommand {
     private static int status(CommandContext<CommandSourceStack> ctx) {
         ServerPlayer player = ctx.getSource().getPlayer();
         if (player == null) {
-            ctx.getSource().sendSuccess(() -> Component.literal("OnlineChat is running."), false);
+            ctx.getSource().sendSuccess(() -> Lang.text("onlinechat.command.status.running"), false);
             return 1;
         }
         OnlineChat runtime = OnlineChat.instance();
         if (runtime == null) return 0;
         Optional<Account> acc = runtime.getAccounts().byPlayerUuid(player.getUUID());
         if (acc.isEmpty()) {
-            player.sendSystemMessage(Component.literal("[OnlineChat] ")
-                    .withStyle(ChatFormatting.GOLD)
-                    .append(Component.literal("Your Minecraft account is not bound to any web account yet.")
-                            .withStyle(ChatFormatting.YELLOW)));
+            player.sendSystemMessage(prefix().append(Lang.text("onlinechat.command.status.unbound").withStyle(ChatFormatting.YELLOW)));
         } else {
             Account a = acc.get();
-            player.sendSystemMessage(Component.literal("[OnlineChat] ")
-                    .withStyle(ChatFormatting.GOLD)
-                    .append(Component.literal("Bound to web account '" + a.getUsername() + "'.")
-                            .withStyle(ChatFormatting.GREEN)));
+            player.sendSystemMessage(prefix().append(Lang.text("onlinechat.command.status.bound", a.getUsername()).withStyle(ChatFormatting.GREEN)));
+            if (TwoFactorGuard.featureEnabled()) {
+                String key = a.isTwoFactorEnabled() ? "onlinechat.command.status.twoFactorOn" : "onlinechat.command.status.twoFactorOff";
+                player.sendSystemMessage(prefix().append(Lang.text(key).withStyle(ChatFormatting.GRAY)));
+            }
         }
         return 1;
     }
@@ -154,11 +152,11 @@ public class OnlineChatCommand {
         if (runtime == null) return 0;
         Optional<Account> acc = runtime.getAccounts().byPlayerUuid(player.getUUID());
         if (acc.isEmpty()) {
-            player.sendSystemMessage(Component.literal("[OnlineChat] Nothing to unbind.").withStyle(ChatFormatting.YELLOW));
+            player.sendSystemMessage(prefix().append(Lang.text("onlinechat.command.unbind.nothing").withStyle(ChatFormatting.YELLOW)));
             return 0;
         }
-        runtime.getAccounts().unbind(acc.get());
-        player.sendSystemMessage(Component.literal("[OnlineChat] Binding removed.").withStyle(ChatFormatting.GREEN));
+        runtime.unbindAccount(acc.get());
+        player.sendSystemMessage(prefix().append(Lang.text("onlinechat.command.unbind.ok").withStyle(ChatFormatting.GREEN)));
         return 1;
     }
 
@@ -166,7 +164,61 @@ public class OnlineChatCommand {
         OnlineChat runtime = OnlineChat.instance();
         if (runtime == null) return 0;
         runtime.reloadWebServer();
-        ctx.getSource().sendSuccess(() -> Component.literal("[OnlineChat] Web server reloaded."), true);
+        ctx.getSource().sendSuccess(() -> prefix().append(Lang.text("onlinechat.command.reload.ok")), true);
         return 1;
+    }
+
+    // ─────────────────────────── Admin: web account management ───────────────────────────
+
+    private static int accountSetPassword(CommandContext<CommandSourceStack> ctx) {
+        OnlineChat runtime = OnlineChat.instance();
+        if (runtime == null) return 0;
+        String username = StringArgumentType.getString(ctx, "username");
+        String password = StringArgumentType.getString(ctx, "password").trim();
+        Optional<Account> acc = runtime.getAccounts().byUsername(username);
+        if (acc.isEmpty()) {
+            ctx.getSource().sendFailure(prefix().append(Lang.text("onlinechat.command.account.notFound", username)));
+            return 0;
+        }
+        int min = ServerConfig.MIN_PASSWORD_LENGTH.get();
+        if (password.length() < min) {
+            ctx.getSource().sendFailure(prefix().append(Lang.text("onlinechat.command.account.passwordShort", min)));
+            return 0;
+        }
+        // PBKDF2 takes a noticeable moment; keep it off the server tick thread.
+        Account target = acc.get();
+        CommandSourceStack source = ctx.getSource();
+        Thread worker = new Thread(() -> {
+            runtime.changePassword(target, password);
+            var srv = source.getServer();
+            srv.execute(() -> source.sendSuccess(
+                    () -> prefix().append(Lang.text("onlinechat.command.account.passwordSet", target.getUsername())
+                            .withStyle(ChatFormatting.GREEN)), true));
+        }, "OnlineChat-setpassword");
+        worker.setDaemon(true);
+        worker.start();
+        return 1;
+    }
+
+    private static int accountDelete(CommandContext<CommandSourceStack> ctx) {
+        OnlineChat runtime = OnlineChat.instance();
+        if (runtime == null) return 0;
+        String username = StringArgumentType.getString(ctx, "username");
+        Optional<Account> acc = runtime.getAccounts().byUsername(username);
+        if (acc.isEmpty()) {
+            ctx.getSource().sendFailure(prefix().append(Lang.text("onlinechat.command.account.notFound", username)));
+            return 0;
+        }
+        Account target = acc.get();
+        String boundName = target.getBoundPlayerName();
+        runtime.deleteAccount(target);
+        String suffix = boundName == null ? "" : Lang.tr("onlinechat.command.account.deleted.unbound", boundName);
+        ctx.getSource().sendSuccess(() -> prefix().append(
+                Lang.text("onlinechat.command.account.deleted", target.getUsername(), suffix).withStyle(ChatFormatting.GREEN)), true);
+        return 1;
+    }
+
+    private static MutableComponent prefix() {
+        return Lang.text("onlinechat.prefix").withStyle(ChatFormatting.GOLD);
     }
 }

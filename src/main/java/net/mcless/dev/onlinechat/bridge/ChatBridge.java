@@ -3,11 +3,14 @@ package net.mcless.dev.onlinechat.bridge;
 import com.google.gson.Gson;
 import com.google.gson.JsonObject;
 import io.netty.channel.Channel;
+import io.netty.channel.ChannelFuture;
+import io.netty.channel.ChannelFutureListener;
 import io.netty.handler.codec.http.websocketx.TextWebSocketFrame;
 import net.mcless.dev.onlinechat.OnlineChat;
 import net.mcless.dev.onlinechat.account.Account;
 import net.mcless.dev.onlinechat.account.AccountManager;
 import net.mcless.dev.onlinechat.config.CommonConfig;
+import net.mcless.dev.onlinechat.i18n.Lang;
 import net.minecraft.ChatFormatting;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.MutableComponent;
@@ -20,9 +23,7 @@ import net.neoforged.neoforge.event.entity.living.LivingDeathEvent;
 import net.neoforged.neoforge.event.entity.player.AdvancementEvent;
 import net.neoforged.neoforge.event.entity.player.PlayerEvent;
 
-import java.util.ArrayDeque;
 import java.util.ArrayList;
-import java.util.Deque;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -54,12 +55,13 @@ public class ChatBridge {
 
     private final WebSessionManager sessions;
     private final AccountManager accounts;
-    private final Deque<ChatMessage> history = new ArrayDeque<>();
+    private final MessageStore store;
     private volatile MinecraftServer server;
 
-    public ChatBridge(WebSessionManager sessions, AccountManager accounts) {
+    public ChatBridge(WebSessionManager sessions, AccountManager accounts, MessageStore store) {
         this.sessions = sessions;
         this.accounts = accounts;
+        this.store = store;
     }
 
     public void setServer(MinecraftServer server) {
@@ -69,12 +71,8 @@ public class ChatBridge {
     // ─────────────────────────── Broadcast helpers ───────────────────────────
 
     public synchronized void rememberAndBroadcast(ChatMessage msg) {
-        int cap = Math.max(0, net.mcless.dev.onlinechat.config.ServerConfig.CHAT_HISTORY_SIZE.get());
-        if (cap > 0) {
-            history.addLast(msg);
-            while (history.size() > cap) history.removeFirst();
-        }
-        String payload = GSON.toJson(msg.toJson());
+        long seq = store.append(msg);
+        String payload = GSON.toJson(MessageStore.toClientJson(seq, msg));
         for (WebSessionManager.Session s : sessions.all()) {
             if (!s.isAuthenticated()) continue;
             if (s.channel.isActive()) s.channel.writeAndFlush(new TextWebSocketFrame(payload));
@@ -88,18 +86,67 @@ public class ChatBridge {
         }
     }
 
+    /**
+     * Force-logs-out every live WebSocket session for {@code username}, used when the account signs in on
+     * another device: pushes a {@code force_logout} frame so the client can show a message, then closes the
+     * channel. The account's existing tokens are invalidated separately by bumping {@code lastLoginAt}.
+     */
+    public void forceLogout(String username, String reason) {
+        OnlineChat.LOGGER.debug("[OnlineChat] Web force-logout: {} (reason: {})", username, reason);
+        JsonObject o = new JsonObject();
+        o.addProperty("type", "force_logout");
+        o.addProperty("reason", reason);
+        String json = GSON.toJson(o);
+        for (WebSessionManager.Session s : sessions.byUsername(username)) {
+            if (s.channel.isActive()) {
+                s.channel.writeAndFlush(new TextWebSocketFrame(json)).addListener(ChannelFutureListener.CLOSE);
+            }
+        }
+    }
+
+    /**
+     * Notifies every live WebSocket client that the server is shutting down, then closes the sockets.
+     * Invoked from {@link net.mcless.dev.onlinechat.OnlineChat#onServerStopping} <em>before</em> the web
+     * server tears down its event loops, so each browser can show a "server closed" dialog instead of
+     * silently spinning in a reconnect loop. Writes are flushed and channels closed before this returns
+     * (bounded await), guaranteeing the frame reaches the client ahead of the imminent shutdown.
+     */
+    public void broadcastShutdown() {
+        JsonObject o = new JsonObject();
+        o.addProperty("type", "server_shutdown");
+        String json = GSON.toJson(o);
+        List<ChannelFuture> futures = new ArrayList<>();
+        for (WebSessionManager.Session s : sessions.all()) {
+            Channel ch = s.channel;
+            if (ch != null && ch.isActive()) {
+                futures.add(ch.writeAndFlush(new TextWebSocketFrame(json)).addListener(ChannelFutureListener.CLOSE));
+            }
+        }
+        // Give the frames a brief, bounded moment to reach the browsers before the event loops are torn down.
+        for (ChannelFuture f : futures) {
+            try {
+                f.await(500);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                break;
+            }
+        }
+    }
+
     public void sendTo(Channel channel, JsonObject payload) {
         if (channel != null && channel.isActive()) {
             channel.writeAndFlush(new TextWebSocketFrame(GSON.toJson(payload)));
         }
     }
 
-    public List<JsonObject> historySnapshot() {
-        List<JsonObject> out = new ArrayList<>();
-        synchronized (this) {
-            for (ChatMessage m : history) out.add(m.toJson());
-        }
-        return out;
+    /** The newest {@code limit} messages for a freshly connected client, plus whether older history exists. */
+    public MessageStore.Page recentPage(int limit) {
+        return store.latest(limit);
+    }
+
+    /** Up to {@code limit} messages older than {@code cursorSeq} (the client's "scroll up to load more" page). */
+    public MessageStore.Page messagesBefore(long cursorSeq, int limit) {
+        return store.before(cursorSeq, limit);
     }
 
     // ─────────────────────────── Web → Game ───────────────────────────
@@ -148,20 +195,18 @@ public class ChatBridge {
 
         // broadcastSystemMessage bypasses ServerChatEvent so we do not echo back to the web.
         srv.getPlayerList().broadcastSystemMessage(line, false);
+        OnlineChat.LOGGER.info("[OnlineChat] Web chat <{}>: {}", displayName, text);
 
         ChatMessage rec = new ChatMessage(System.currentTimeMillis(), Kind.WEB,
                 displayName,
                 session.boundPlayerUuid == null ? null : session.boundPlayerUuid.toString(),
                 text, null);
-        // Only push to history + other web clients (not back to sender's game view).
+        // Persist + push to other web clients (not back to the sender's own view).
+        long seq;
         synchronized (this) {
-            int cap = Math.max(0, net.mcless.dev.onlinechat.config.ServerConfig.CHAT_HISTORY_SIZE.get());
-            if (cap > 0) {
-                history.addLast(rec);
-                while (history.size() > cap) history.removeFirst();
-            }
+            seq = store.append(rec);
         }
-        String payload = GSON.toJson(rec.toJson());
+        String payload = GSON.toJson(MessageStore.toClientJson(seq, rec));
         for (WebSessionManager.Session s : sessions.all()) {
             if (!s.isAuthenticated() || s == session) continue;
             if (s.channel.isActive()) s.channel.writeAndFlush(new TextWebSocketFrame(payload));
@@ -190,7 +235,7 @@ public class ChatBridge {
         if (!shouldBridge("join")) return;
         String name = event.getEntity().getGameProfile().getName();
         rememberAndBroadcast(new ChatMessage(System.currentTimeMillis(), Kind.SYSTEM, null, null,
-                name + " joined the game", "join"));
+                Lang.tr("onlinechat.bridge.join", name), "join"));
     }
 
     @SubscribeEvent
@@ -198,7 +243,7 @@ public class ChatBridge {
         if (!shouldBridge("quit")) return;
         String name = event.getEntity().getGameProfile().getName();
         rememberAndBroadcast(new ChatMessage(System.currentTimeMillis(), Kind.SYSTEM, null, null,
-                name + " left the game", "quit"));
+                Lang.tr("onlinechat.bridge.quit", name), "quit"));
     }
 
     @SubscribeEvent
@@ -219,7 +264,7 @@ public class ChatBridge {
         Component title = event.getAdvancement().value().display()
                 .map(d -> d.getTitle())
                 .orElse(Component.literal(event.getAdvancement().id().toString()));
-        String text = player.getGameProfile().getName() + " has made the advancement [" + title.getString() + "]";
+        String text = Lang.tr("onlinechat.bridge.advancement", player.getGameProfile().getName(), title.getString());
         rememberAndBroadcast(new ChatMessage(System.currentTimeMillis(), Kind.SYSTEM,
                 player.getGameProfile().getName(), player.getUUID().toString(),
                 text, "advancement"));

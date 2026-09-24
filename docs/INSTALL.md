@@ -1,5 +1,7 @@
 # Installation
 
+> Languages: **English** | [简体中文](zh/INSTALL.md)
+
 This document covers building the mod from source, deploying it to a server, and
 preparing the TLS material it needs.
 
@@ -27,8 +29,12 @@ Windows PowerShell, macOS Terminal and Linux bash are all supported.
 The output jar is written to:
 
 ```
-build/libs/onlinechat-1.0.0.jar
+build/libs/onlinechat-1.21.1-neoforge-0.0.1-alpha.jar
 ```
+
+> The file name follows the NeoForge convention `<modid>-<mcversion>-<loader>-<modversion>.jar`.
+> It is derived from `mod_id`, `minecraft_version` and `mod_version` in `gradle.properties`, so it
+> tracks your version automatically.
 
 If Gradle reports missing dependencies after a network change, refresh them with:
 
@@ -58,6 +64,12 @@ The mod serves HTTPS using PEM files. By default it reads:
 
 Relative paths are resolved against the **working directory** of the Minecraft server
 (the folder that contains `server.properties`).
+
+> **The directory is configurable.** Set `tls.certDir` (default `./ssl`) to point at any folder —
+> for example your Let's Encrypt `live/<domain>/` directory — and the mod will read
+> `<certDir>/fullchain.pem` and `<certDir>/privkey.pem`. Use `tls.certFileName` / `tls.keyFileName`
+> if your files are named differently, or `tls.certChainPath` / `tls.privateKeyPath` for a full
+> explicit path that overrides the directory entirely.
 
 ### Option A — Let's Encrypt (recommended for public servers)
 
@@ -101,9 +113,9 @@ If your key is encrypted, put the passphrase in `config/onlinechat-server.toml`:
 
 ## 4. Install on a dedicated server
 
-1. Drop `onlinechat-1.0.0.jar` into your server's `mods/` folder.
-2. Make sure `./ssl/fullchain.pem` and `./ssl/privkey.pem` exist relative to the
-   server's working directory.
+1. Drop `onlinechat-1.21.1-neoforge-0.0.1-alpha.jar` into your server's `mods/` folder.
+2. Make sure the TLS material exists relative to the server's working directory — by default
+   `./ssl/fullchain.pem` and `./ssl/privkey.pem` (or set `tls.certDir` to wherever they live).
 3. Start the server as usual (`java -jar ...` or your start script).
 4. Watch the log for:
    ```
@@ -130,8 +142,8 @@ stops when you leave it. Note that:
 * `./ssl` still resolves against the Minecraft run directory (`run/` in a dev
   workspace, or the launcher's instance folder in production).
 
-For development you can point `certChainPath` and `privateKeyPath` at the project
-root with an absolute path or `../ssl/...`.
+For development you can set `tls.certDir` to `../ssl` (or an absolute path) so it points at the
+project root, or override `tls.certChainPath` / `tls.privateKeyPath` directly.
 
 ---
 
@@ -174,3 +186,34 @@ Or edit `run/config/onlinechat-server.toml` and set absolute paths.
 
 If anything fails, check the server log for `[OnlineChat]` entries and consult
 [docs/SECURITY.md](SECURITY.md) and [docs/CONFIGURATION.md](CONFIGURATION.md).
+
+---
+
+## 8. Upgrading from an older version
+
+Drop the new jar over the old one and restart — no manual migration is required. What happens
+to your existing data:
+
+* **Config (`onlinechat-common.toml` / `onlinechat-server.toml`)** — NeoForge adds every key the new
+  version introduces with its default and keeps your existing values. A value that is now out of range
+  is clamped: an old `chatHistorySize = 0` (allowed before, now minimum `1`) becomes the new default
+  `300`. New sections such as `[twoFactor]`, `[limits]` and keys like `language`, `certDir`, `webDir`
+  simply appear.
+* **TLS paths** — if your config still carries the old defaults `certChainPath = "./ssl/fullchain.pem"`
+  / `privateKeyPath = "./ssl/privkey.pem"` (from before `certDir` existed), they are treated as unset so
+  `certDir + certFileName/keyFileName` take over; the server logs one INFO line suggesting you clear them.
+  Any *other* explicit path still wins, so custom setups are untouched.
+* **Accounts (`accounts.json`)** — read as-is; records without the newer `twoFactorEnabled` field default
+  to two-factor off. Bindings, passwords and salts are preserved.
+* **Web sessions** — the older three-part login token (`username.expiry.signature`) stays valid until it
+  expires, so upgrading does **not** sign everybody out. New logins get the current four-part token.
+* **Web front-end (`config/onlinechat/web`)** — upgraded in place using the hidden `.exist` manifest:
+  files you never edited are refreshed, files the new version adds are copied in, files it no longer ships
+  are removed (only if unmodified), and **your edited files are kept**. `locales/*.json` are key-merged so
+  custom wording survives while new keys still appear. If a file you edited also changed upstream, the log
+  prints a WARN listing it so you can merge by hand.
+* **Forcing a clean reset** — delete `config/onlinechat/web/.exist` (or the whole `web` directory) and
+  restart to re-extract pristine defaults, discarding front-end edits. Config, accounts and chat history
+  are never touched by this.
+
+Always keep a backup of `config/onlinechat*` and your `accounts.json` / chat log before upgrading.

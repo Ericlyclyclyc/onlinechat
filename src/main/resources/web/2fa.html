@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+    <meta name="theme-color" content="#08091a">
+    <meta name="robots" content="noindex">
+    <title>Two-factor · Online Chat</title>
+    <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+<div class="app">
+    <nav class="nav" aria-label="Main navigation"></nav>
+    <main class="page">
+        <div class="card fade-in">
+            <div class="hero-icon">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+                    <path d="M9 12l2 2 4-4"/>
+                </svg>
+            </div>
+            <h1 data-i18n="twofa.title">Confirm your sign-in</h1>
+            <p class="subtitle" data-i18n="twofa.subtitle">A Minecraft player bound to your account is waiting to be let in.</p>
+
+            <!-- Loading -->
+            <div id="state-loading" class="status-line" style="margin-top:0">
+                <span class="dot"></span><span data-i18n="twofa.loading">Checking the request…</span>
+            </div>
+
+            <!-- Confirm -->
+            <section id="state-confirm" class="bind-grid hidden">
+                <div class="kv"><span class="k" data-i18n="twofa.player">Player</span><span class="v" id="tf-player">—</span></div>
+                <div class="kv"><span class="k" data-i18n="twofa.account">Signed in as</span><span class="v" id="tf-account">—</span></div>
+                <div class="countdown">
+                    <progress id="tf-progress" max="100" value="100"></progress>
+                    <span class="small text-dim" id="tf-timer">—</span>
+                </div>
+                <p class="callout small" style="margin:0" data-i18n="twofa.confirm.body">Only approve if you just joined the server with this player. If it wasn't you, reject to kick them.</p>
+                <button class="btn primary block" type="button" id="tf-approve">
+                    <span class="spinner"></span><span data-i18n="twofa.approve">Yes, it's me — let me in</span>
+                </button>
+                <button class="btn danger block" type="button" id="tf-reject">
+                    <span class="spinner"></span><span data-i18n="twofa.reject">That's not me — kick the player</span>
+                </button>
+            </section>
+
+            <!-- Result -->
+            <section id="state-result" class="bind-grid hidden">
+                <div class="status-line" id="tf-result" style="margin-top:0">
+                    <span class="dot"></span><span id="tf-result-text"></span>
+                </div>
+                <div class="row wrap" id="tf-result-actions"></div>
+            </section>
+        </div>
+    </main>
+</div>
+<script src="/common.js"></script>
+<script src="/2fa.js"></script>
+</body>
+</html>

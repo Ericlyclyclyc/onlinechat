@@ -107,6 +107,64 @@
         info(m) { this.show(m, 'info'); },
     };
 
+    // ───────────────────────────── Modal ─────────────────────────────
+    // A single blocking dialog (backdrop + card). Used for notices that must not be missed — e.g. the
+    // server shutting down. Only one modal is shown at a time; re-invoking replaces the current one.
+    const Modal = {
+        DEFAULT_ICON: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>',
+        // Power-off glyph, used for the "server has shut down" notice.
+        POWER_ICON: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18.36 6.64a9 9 0 1 1-12.73 0"/><line x1="12" y1="2" x2="12" y2="12"/></svg>',
+        /**
+         * @param {object} opts { title, message, buttonText, tone='warn', icon, dismissible=false, onClose }
+         * @returns {HTMLElement} the overlay element (removed on close)
+         */
+        alert(opts = {}) {
+            const title = opts.title || '';
+            const message = opts.message || '';
+            const buttonText = opts.buttonText || 'OK';
+            const tone = opts.tone || 'warn';
+            const icon = opts.icon || Modal.DEFAULT_ICON;
+            const dismissible = !!opts.dismissible;
+            const onClose = opts.onClose || null;
+
+            // Never stack duplicates (a repeated frame would otherwise pile up overlays).
+            document.querySelectorAll('.modal-overlay').forEach(n => n.remove());
+
+            const overlay = document.createElement('div');
+            overlay.className = 'modal-overlay';
+            overlay.setAttribute('role', 'dialog');
+            overlay.setAttribute('aria-modal', 'true');
+            overlay.innerHTML = `
+                <div class="modal-card tone-${tone}">
+                    <div class="modal-icon">${icon}</div>
+                    <h2 class="modal-title"></h2>
+                    <p class="modal-msg"></p>
+                    <div class="modal-actions"><button class="btn primary modal-btn"></button></div>
+                </div>`;
+            // textContent (not innerHTML) for the copy so it is always treated as plain text.
+            overlay.querySelector('.modal-title').textContent = title;
+            overlay.querySelector('.modal-msg').textContent = message;
+            const btn = overlay.querySelector('.modal-btn');
+            btn.textContent = buttonText;
+
+            function onKey(e) { if (e.key === 'Escape' && dismissible) close(); }
+            function close() {
+                document.removeEventListener('keydown', onKey);
+                overlay.classList.remove('show');
+                overlay.classList.add('closing');
+                setTimeout(() => { overlay.remove(); if (onClose) onClose(); }, 160);
+            }
+            btn.addEventListener('click', close);
+            if (dismissible) overlay.addEventListener('click', (e) => { if (e.target === overlay) close(); });
+            document.addEventListener('keydown', onKey);
+
+            document.body.appendChild(overlay);
+            requestAnimationFrame(() => overlay.classList.add('show'));
+            btn.focus();
+            return overlay;
+        },
+    };
+
     // ───────────────────────────── Auth ─────────────────────────────
     const Auth = {
         // Token is optional: the server also accepts the oc_token cookie.
@@ -157,7 +215,7 @@
             ${user ? `
             <div class="links">
                 <a href="/chat.html" data-page="chat" data-i18n="nav.chat">Chat</a>
-                <a href="/bind.html" data-page="bind" data-i18n="nav.bind">Bind</a>
+                <a href="/account.html" data-page="account" data-i18n="nav.account">Account</a>
             </div>` : ''}
             <div class="spacer"></div>
             <label class="lang" title="Language">
@@ -216,5 +274,5 @@
         btn.appendChild(label);
     }
 
-    global.OC = { API, I18N, Toast, Auth, renderNav, escapeHtml, fmtTime, setLoading, ensureSpinner, SUPPORTED_LOCALES };
+    global.OC = { API, I18N, Toast, Modal, Auth, renderNav, escapeHtml, fmtTime, setLoading, ensureSpinner, SUPPORTED_LOCALES };
 })(window);

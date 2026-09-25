@@ -1,4 +1,8 @@
-/* Chat page: live WebSocket bridge with the Minecraft server. */
+/* Chat page: live WebSocket bridge with the Minecraft server.
+ * Message list features: date separators, consecutive-message grouping, clickable links,
+ * @mention highlight, per-message copy, unread title badge, optional sound, draft restore,
+ * @-mention autocomplete, full-archive search overlay, online players + web users sidebar.
+ */
 (async function () {
     'use strict';
     await OC.I18N.load();
@@ -13,17 +17,22 @@
     const connBadge = document.getElementById('conn-badge');
     const playersEl = document.getElementById('players');
     const playersEmpty = document.getElementById('players-empty');
+    const webUsersEl = document.getElementById('web-users');
+    const webUsersEmpty = document.getElementById('web-users-empty');
     const accName = document.getElementById('acc-name');
     const accBound = document.getElementById('acc-bound');
     const scrollDownBtn = document.getElementById('scroll-down');
     const loadMoreEl = document.getElementById('load-more');
+    const soundToggle = document.getElementById('sound-toggle');
 
     // Pagination: the server keeps the full archive and streams it a page at a time (newest first).
     const PAGE_SIZE = 30;
     const MAX_DOM = 2000;             // runaway guard: trim the oldest rendered nodes beyond this
+    const GROUP_WINDOW_MS = 3 * 60 * 1000;  // same author + same side within 3 min → compact grouping
     let oldestLoadedSeq = null;       // smallest message id in the DOM = the exclusive "load before" cursor
     let hasMore = false;              // server reported that older history still exists
     let loadingMore = false;          // a page request is in flight
+    let lastGroup = null;             // grouping/divider state of the newest rendered message
 
     // Style config from the server (prefix text/colour, max length).
     let style = {
@@ -31,8 +40,28 @@
         webPrefixText: '[Web Chat]', webPrefixColor: '#e67e22',
         maxMessageLength: 512,
     };
+    let playersCache = [];            // [{name, uuid}] from /api/online
+    let webUsersCache = [];           // [{username, mcName?, self}] from /api/webusers
 
-    // Account sidebar
+    // ───────────── Sound / unread notifications ─────────────
+    if (soundToggle) {
+        soundToggle.checked = OC.Sound.enabled();
+        soundToggle.addEventListener('change', () => {
+            OC.Sound.setEnabled(soundToggle.checked);
+            if (soundToggle.checked) OC.Sound.beep();   // audible confirmation
+        });
+    }
+    document.addEventListener('click', () => OC.Sound.unlock(), { once: true });
+    document.addEventListener('visibilitychange', () => { if (!document.hidden) OC.TitleBadge.reset(); });
+    window.addEventListener('focus', () => OC.TitleBadge.reset());
+
+    function maybeNotify(m) {
+        if (m.author && me && (m.author === me.username || m.author === me.mcName)) return;
+        if (document.hidden) OC.TitleBadge.incr();
+        if (document.hidden || !document.hasFocus()) OC.Sound.beep();
+    }
+
+    // ───────────── Account sidebar ─────────────
     function renderAccount(acc) {
         accName.textContent = acc.username;
         if (acc.bound) {
@@ -54,6 +83,39 @@
     renderAccount(me);
 
     // ───────────── Message rendering ─────────────
+    const COPY_SVG = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>';
+
+    function dayOf(ts) { return new Date(ts || Date.now()).toDateString(); }
+    function groupable(m) { return m && (m.type === 'chat' || m.type === 'web'); }
+    function shouldGroup(prev, m) {
+        return !!(prev && groupable(prev) && groupable(m) &&
+            prev.author === m.author && prev.type === m.type &&
+            m.ts - prev.ts >= 0 && m.ts - prev.ts < GROUP_WINDOW_MS);
+    }
+    function mentionsMe(text) {
+        if (!me || !text) return false;
+        const s = text.toLowerCase();
+        const names = [me.username];
+        if (me.mcName) names.push(me.mcName);
+        return names.some(n => {
+            if (!n) return false;
+            const needle = '@' + n.toLowerCase();
+            let idx = s.indexOf(needle);
+            while (idx >= 0) {
+                const before = idx === 0 ? '' : s[idx - 1];
+                const afterIdx = idx + needle.length;
+                const after = afterIdx >= s.length ? '' : s[afterIdx];
+                if (!/[a-z0-9_]/.test(before) && !/[a-z0-9_]/.test(after)) return true;
+                idx = s.indexOf(needle, idx + 1);
+            }
+            return false;
+        });
+    }
+    // Server config strings land in a style="" attribute; keep only harmless colour-ish values.
+    function styleColor(c) {
+        return /^[#\w\s,().%-]+$/.test(String(c || '')) ? String(c) : '';
+    }
+
     // The message list is its own scroll area: stick to the bottom only while the user is already
     // there; otherwise keep their position and reveal a "scroll to bottom" button.
     function isNearBottom() {
@@ -67,42 +129,93 @@
         scrollDownBtn.classList.toggle('visible', scrollable && !isNearBottom());
     }
 
-    // Builds the DOM node for one message (shared by append + prepend). Stamps data-seq so the
-    // pagination cursor can be recovered from the topmost node after trimming.
-    function buildMessageNode(m) {
-        const div = document.createElement('div');
-        if (m.id != null) div.dataset.seq = String(m.id);
+    // Builds the DOM node for one message (shared by append, prepend and search results).
+    // The wrapper .msg-entry always renders the full structure; grouping and dividers are pure
+    // CSS classes so a later boundary fix can toggle them without rebuilding the node.
+    function buildMessageNode(m, opts) {
+        opts = opts || {};
+        const entry = document.createElement('div');
+        entry.className = 'msg-entry';
+        if (m.id != null) entry.dataset.seq = String(m.id);
+        entry.dataset.type = m.type || 'system';
+        entry.dataset.ts = String(m.ts || 0);
+        if (m.author != null) entry.dataset.author = m.author;
+
+        if (opts.divider) {
+            const sep = document.createElement('div');
+            sep.className = 'day-sep';
+            const span = document.createElement('span');
+            span.textContent = opts.divider;
+            sep.appendChild(span);
+            entry.appendChild(sep);
+        }
+
         const isMine = me && m.author && (m.author === me.username || m.author === me.mcName);
         if (m.type === 'system') {
-            div.className = 'msg from-system';
-            div.innerHTML = `<div class="bubble">${OC.escapeHtml(m.text || '')}</div>`;
-        } else {
-            const fromGame = m.type === 'chat';
-            div.className = 'msg ' + (fromGame ? 'from-game' : 'from-web') + (isMine ? ' mine' : '');
-            const initial = (m.author || '?').charAt(0).toUpperCase();
-            const prefixText = fromGame ? style.inGamePrefixText : style.webPrefixText;
-            const prefixColor = fromGame ? style.inGamePrefixColor : style.webPrefixColor;
-            const prefixClass = fromGame ? 'ingame' : 'web';
-            div.innerHTML = `
-                <div class="avatar">${OC.escapeHtml(initial)}</div>
-                <div class="body">
-                    <div class="meta">
-                        <span class="prefix ${prefixClass}" style="color:${prefixColor}">${OC.escapeHtml(prefixText)}</span>
-                        <span class="name">${OC.escapeHtml(m.author || '?')}</span>
-                        <span class="ts">${OC.fmtTime(m.ts)}</span>
-                    </div>
-                    <div class="bubble">${OC.escapeHtml(m.text || '')}</div>
-                </div>`;
+            const div = document.createElement('div');
+            div.className = 'msg from-system' + (m.systemKind === 'announce' ? ' sys-announce' : '');
+            const bubble = document.createElement('div');
+            bubble.className = 'bubble';
+            if (m.systemKind === 'announce') {
+                const tag = document.createElement('span');
+                tag.className = 'announce-tag';
+                tag.textContent = '📢 ' + OC.I18N.t('chat.announce.label');
+                bubble.appendChild(tag);
+            }
+            bubble.appendChild(OC.renderText(m.text || ''));
+            div.appendChild(bubble);
+            entry.appendChild(div);
+            return entry;
         }
-        return div;
+
+        const fromGame = m.type === 'chat';
+        const div = document.createElement('div');
+        div.className = 'msg ' + (fromGame ? 'from-game' : 'from-web') + (isMine ? ' mine' : '') + (opts.grouped ? ' compact' : '');
+        const initial = (m.author || '?').charAt(0).toUpperCase();
+        const prefixText = fromGame ? style.inGamePrefixText : style.webPrefixText;
+        const prefixColor = fromGame ? style.inGamePrefixColor : style.webPrefixColor;
+        const prefixClass = fromGame ? 'ingame' : 'web';
+        div.innerHTML = `
+            <div class="avatar">${OC.escapeHtml(initial)}</div>
+            <div class="body">
+                <div class="meta">
+                    <span class="prefix ${prefixClass}" style="color:${styleColor(prefixColor) || (fromGame ? '#2ecc71' : '#e67e22')}">${OC.escapeHtml(prefixText)}</span>
+                    <span class="name">${OC.escapeHtml(m.author || '?')}</span>
+                    <span class="ts">${OC.fmtTime(m.ts)}</span>
+                </div>
+                <div class="bubble"></div>
+            </div>`;
+        const bubble = div.querySelector('.bubble');
+        bubble.appendChild(OC.renderText(m.text || ''));
+        if (mentionsMe(m.text)) bubble.classList.add('mention-hit');
+        const copyBtn = document.createElement('button');
+        copyBtn.type = 'button';
+        copyBtn.className = 'copy-btn';
+        copyBtn.innerHTML = COPY_SVG;
+        copyBtn.title = OC.I18N.t('chat.copy');
+        copyBtn.setAttribute('aria-label', OC.I18N.t('chat.copy'));
+        copyBtn.addEventListener('click', async (e) => {
+            e.stopPropagation();
+            if (await OC.copyText(m.text || '')) OC.Toast.ok(OC.I18N.t('chat.copied'));
+        });
+        bubble.appendChild(copyBtn);
+        if (opts.grouped) div.title = `${m.author || '?'} · ${OC.fmtTime(m.ts)}`;
+        entry.appendChild(div);
+        return entry;
     }
 
-    function appendMessage(m, forceScroll) {
+    function appendMessage(m, forceScroll, flags) {
+        flags = flags || {};
         const stick = forceScroll === true || isNearBottom();
-        messagesEl.appendChild(buildMessageNode(m));
+        const prev = lastGroup;
+        const divider = !prev || dayOf(m.ts) !== prev.day ? OC.fmtDate(m.ts) : null;
+        const grouped = shouldGroup(prev, m);
+        messagesEl.appendChild(buildMessageNode(m, { divider, grouped }));
+        lastGroup = { author: m.author, type: m.type, ts: m.ts, day: dayOf(m.ts) };
         trimTop();
         if (stick) scrollToBottom(false);
         updateScrollBtn();
+        if (!flags.local) maybeNotify(m);
     }
 
     // Runaway guard for a very long-lived tab: drop the oldest rendered nodes, compensating scrollTop so
@@ -120,16 +233,57 @@
         }
     }
 
+    function firstEntryInfo() {
+        const first = messagesEl.querySelector('.msg-entry');
+        if (!first) return null;
+        const ts = Number(first.dataset.ts || 0);
+        return { author: first.dataset.author || null, type: first.dataset.type, ts, day: dayOf(ts) };
+    }
+
     // Insert an older page at the top while preserving the exact scroll position (no perceptible jump).
     function prependMessages(list) {
         const prevHeight = messagesEl.scrollHeight;
         const prevTop = messagesEl.scrollTop;
+        let prev = firstEntryInfo();
         const frag = document.createDocumentFragment();
-        list.forEach(m => frag.appendChild(buildMessageNode(m)));
+        for (const m of list) {
+            const divider = !prev || dayOf(m.ts) !== prev.day ? OC.fmtDate(m.ts) : null;
+            const grouped = shouldGroup(prev, m);
+            frag.appendChild(buildMessageNode(m, { divider, grouped }));
+            prev = { author: m.author, type: m.type, ts: m.ts, day: dayOf(m.ts) };
+        }
         messagesEl.insertBefore(frag, messagesEl.firstChild);
+        if (list.length) {
+            fixBoundary(list[list.length - 1]);
+            if (list[0].id != null) oldestLoadedSeq = list[0].id;
+        }
         messagesEl.scrollTop = prevTop + (messagesEl.scrollHeight - prevHeight);
-        if (list.length && list[0].id != null) oldestLoadedSeq = list[0].id;
         updateScrollBtn();
+    }
+
+    // The old topmost node may now (a) start a new date and need a divider, or (b) follow a message
+    // from the same author and need compact grouping. Toggle both — pure class/child tweaks.
+    function fixBoundary(lastNew) {
+        const nodes = messagesEl.querySelectorAll('.msg-entry');
+        if (nodes.length < 2 || !lastNew) return;
+        const second = nodes[1];
+        const secTs = Number(second.dataset.ts || 0);
+        const secInfo = { author: second.dataset.author || null, type: second.dataset.type, ts: secTs };
+        const msgEl = second.querySelector('.msg');
+        if (msgEl) msgEl.classList.toggle('compact', !!shouldGroup(lastNew, secInfo));
+        const existingSep = second.querySelector(':scope > .day-sep');
+        if (dayOf(lastNew.ts) !== dayOf(secTs)) {
+            if (!existingSep) {
+                const sep = document.createElement('div');
+                sep.className = 'day-sep';
+                const span = document.createElement('span');
+                span.textContent = OC.fmtDate(secTs);
+                sep.appendChild(span);
+                second.insertBefore(sep, second.firstChild);
+            }
+        } else if (existingSep) {
+            existingSep.remove();
+        }
     }
 
     // Fetch the page just older than the topmost loaded message and prepend it.
@@ -199,9 +353,15 @@
                 case 'history':
                     if (!historyLoaded) {
                         messagesEl.innerHTML = '';
+                        lastGroup = null;
                         const list = msg.messages || [];
                         const frag = document.createDocumentFragment();
-                        list.forEach(m => frag.appendChild(buildMessageNode(m)));
+                        for (const m of list) {
+                            const divider = !lastGroup || dayOf(m.ts) !== lastGroup.day ? OC.fmtDate(m.ts) : null;
+                            const grouped = shouldGroup(lastGroup, m);
+                            frag.appendChild(buildMessageNode(m, { divider, grouped }));
+                            lastGroup = { author: m.author, type: m.type, ts: m.ts, day: dayOf(m.ts) };
+                        }
                         messagesEl.appendChild(frag);
                         historyLoaded = true;
                         hasMore = !!msg.hasMore;
@@ -266,6 +426,17 @@
     }, 50000);
 
     // ───────────── Composer ─────────────
+    // Draft persistence: remember the un-sent text across reloads.
+    const DRAFT_KEY = 'oc.draft';
+    const saveDraft = OC.debounce(() => {
+        const v = input.value;
+        if (v) sessionStorage.setItem(DRAFT_KEY, v);
+        else sessionStorage.removeItem(DRAFT_KEY);
+    }, 400);
+    input.addEventListener('input', saveDraft);
+    const draft = sessionStorage.getItem(DRAFT_KEY);
+    if (draft) input.value = draft;
+
     composer.addEventListener('submit', (e) => {
         e.preventDefault();
         const text = input.value.trim();
@@ -279,9 +450,134 @@
         appendMessage({
             type: 'web', ts: Date.now(),
             author: me.mcName || me.username, text,
-        }, true);
+        }, true, { local: true });
         input.value = '';
+        sessionStorage.removeItem(DRAFT_KEY);
+        closeMention();
         input.focus();
+    });
+
+    // Escape clears the input when the mention dropdown is closed.
+    input.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape' && !mentionState.open) {
+            if (input.value) {
+                input.value = '';
+                sessionStorage.removeItem(DRAFT_KEY);
+            } else {
+                input.blur();
+            }
+        }
+    });
+
+    // ───────────── @-mention autocomplete ─────────────
+    const mentionBox = document.createElement('div');
+    mentionBox.className = 'mention-box hidden';
+    composer.appendChild(mentionBox);
+    let mentionState = { open: false, items: [], active: -1, tokenStart: -1 };
+
+    function mentionToken() {
+        const pos = input.selectionStart || 0;
+        const text = input.value.slice(0, pos);
+        const m = text.match(/(?:^|\s)@([^\s@]*)$/);
+        if (!m) return null;
+        const tokenStart = pos - m[0].length + (m[0][0] === '@' ? 0 : 1);
+        return { query: m[1].toLowerCase(), tokenStart };
+    }
+
+    function mentionCandidates(q) {
+        const out = [];
+        const seen = new Set();
+        for (const p of playersCache) {
+            const key = p.name.toLowerCase();
+            if (seen.has(key)) continue;
+            if (!q || key.startsWith(q)) {
+                seen.add(key);
+                out.push({ text: p.name, group: 'player' });
+            }
+        }
+        for (const w of webUsersCache) {
+            const key = w.username.toLowerCase();
+            if (seen.has(key)) continue;
+            if (!q || key.startsWith(q)) {
+                seen.add(key);
+                out.push({ text: w.username, group: 'web' });
+            }
+        }
+        return out.slice(0, 8);
+    }
+
+    function renderMentionBox() {
+        const items = mentionState.items;
+        if (!items.length) { closeMention(); return; }
+        mentionBox.innerHTML = '';
+        items.forEach((item, i) => {
+            const div = document.createElement('div');
+            div.className = 'mention-item' + (i === mentionState.active ? ' active' : '');
+            div.innerHTML = `<span class="avatar mini">${OC.escapeHtml(item.text.charAt(0).toUpperCase())}</span>
+                <span>${OC.escapeHtml(item.text)}</span>
+                <span class="mention-tag ${item.group}">${OC.escapeHtml(OC.I18N.t(item.group === 'web' ? 'chat.mention.web' : 'chat.mention.player'))}</span>`;
+            div.addEventListener('mousedown', (e) => {
+                e.preventDefault();
+                insertMention(item);
+            });
+            mentionBox.appendChild(div);
+        });
+        mentionBox.classList.remove('hidden');
+        mentionState.open = true;
+    }
+
+    function closeMention() {
+        mentionState.open = false;
+        mentionState.items = [];
+        mentionState.active = -1;
+        mentionBox.classList.add('hidden');
+    }
+
+    function insertMention(item) {
+        const pos = input.selectionStart || input.value.length;
+        const text = input.value.slice(0, pos);
+        const m = text.match(/(?:^|\s)@[^\s@]*$/);
+        if (!m) return;
+        const atIdx = pos - m[0].length + (m[0][0] === '@' ? 0 : 1);
+        const tail = input.value.slice(pos);
+        input.value = input.value.slice(0, atIdx) + '@' + item.text + ' ' + tail;
+        const caret = atIdx + item.text.length + 2;
+        input.setSelectionRange(caret, caret);
+        closeMention();
+        input.focus();
+        saveDraft();
+    }
+
+    input.addEventListener('input', () => {
+        const tok = mentionToken();
+        if (!tok) { closeMention(); return; }
+        mentionState.items = mentionCandidates(tok.query);
+        mentionState.tokenStart = tok.tokenStart;
+        mentionState.active = mentionState.items.length ? 0 : -1;
+        renderMentionBox();
+    });
+    input.addEventListener('keydown', (e) => {
+        if (!mentionState.open) return;
+        if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+            e.preventDefault();
+            if (!mentionState.items.length) return;
+            const delta = e.key === 'ArrowDown' ? 1 : -1;
+            mentionState.active = (mentionState.active + delta + mentionState.items.length) % mentionState.items.length;
+            renderMentionBox();
+        } else if (e.key === 'Enter' || e.key === 'Tab') {
+            if (mentionState.active >= 0 && mentionState.items[mentionState.active]) {
+                e.preventDefault();
+                insertMention(mentionState.items[mentionState.active]);
+            } else {
+                closeMention();
+            }
+        } else if (e.key === 'Escape') {
+            e.stopPropagation();
+            closeMention();
+        }
+    });
+    document.addEventListener('click', (e) => {
+        if (!composer.contains(e.target)) closeMention();
     });
 
     // ───────────── Online players sidebar ─────────────
@@ -290,6 +586,7 @@
             const { ok, body } = await OC.API.get('/api/online');
             if (!ok) return;
             const players = body.players || [];
+            playersCache = players;
             playersEl.innerHTML = '';
             if (players.length === 0) {
                 playersEmpty.classList.remove('hidden');
@@ -305,8 +602,127 @@
             }
         } catch (_) {}
     }
+
+    // ───────────── Web users sidebar ─────────────
+    async function refreshWebUsers() {
+        try {
+            const { ok, body } = await OC.API.get('/api/webusers');
+            if (!ok) return;
+            webUsersCache = body.webUsers || [];
+            webUsersEl.innerHTML = '';
+            const others = webUsersCache.filter(w => !w.self);
+            webUsersEmpty.classList.toggle('hidden', others.length > 0);
+            others.forEach(w => {
+                const li = document.createElement('li');
+                li.className = 'online web-user';
+                li.innerHTML = `<span class="avatar">${OC.escapeHtml((w.username || '?').charAt(0).toUpperCase())}</span>
+                    <span>${OC.escapeHtml(w.username)}</span>
+                    ${w.mcName ? `<span class="web-bound">→ ${OC.escapeHtml(w.mcName)}</span>` : ''}
+                    <span class="status-dot"></span>`;
+                webUsersEl.appendChild(li);
+            });
+        } catch (_) {}
+    }
     refreshPlayers();
+    refreshWebUsers();
     setInterval(refreshPlayers, 10000);
+    setInterval(refreshWebUsers, 10000);
+
+    // ───────────── Full-archive search overlay ─────────────
+    const searchLayer = document.getElementById('search-layer');
+    const searchInput = document.getElementById('search-input');
+    const searchResults = document.getElementById('search-results');
+    const searchStatus = document.getElementById('search-status');
+    const searchMoreBtn = document.getElementById('search-more');
+    const searchOpenBtn = document.getElementById('search-open');
+    const searchCloseBtn = document.getElementById('search-close');
+    let searchState = { q: '', loading: false };
+
+    function openSearch() {
+        searchLayer.classList.remove('hidden');
+        searchInput.focus();
+        searchInput.select();
+    }
+    function closeSearch() {
+        searchLayer.classList.add('hidden');
+    }
+    searchOpenBtn.addEventListener('click', openSearch);
+    searchCloseBtn.addEventListener('click', closeSearch);
+
+    function renderSearchStatus(text, kind) {
+        searchStatus.className = 'search-status' + (kind ? ' ' + kind : '');
+        searchStatus.textContent = text;
+    }
+
+    async function runSearch(q, before) {
+        if (searchState.loading) return;
+        searchState.loading = true;
+        const isFirst = !before;
+        try {
+            const params = new URLSearchParams({ q, limit: String(PAGE_SIZE) });
+            if (before) params.set('before', String(before));
+            const { ok, body } = await OC.API.get('/api/search?' + params.toString());
+            if (!ok) {
+                renderSearchStatus(body && body.error ? body.error : OC.I18N.t('error.generic'), 'err');
+                return;
+            }
+            const list = body.messages || [];
+            if (isFirst) searchResults.innerHTML = '';
+            const frag = document.createDocumentFragment();
+            list.forEach(m => frag.appendChild(buildMessageNode(m, {})));
+            searchResults.appendChild(frag);
+            searchState.hasMore = !!body.hasMore;
+            searchMoreBtn.classList.toggle('hidden', !searchState.hasMore);
+            if (isFirst) {
+                renderSearchStatus(
+                    list.length === 0 ? OC.I18N.t('chat.search.noResults')
+                        : OC.I18N.t('chat.search.results', { n: list.length }),
+                    list.length === 0 ? 'empty' : 'ok');
+            }
+        } catch (_) {
+            renderSearchStatus(OC.I18N.t('error.network'), 'err');
+        } finally {
+            searchState.loading = false;
+        }
+    }
+
+    searchInput.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') {
+            e.preventDefault();
+            const q = searchInput.value.trim();
+            if (!q) return;
+            searchState.q = q;
+            runSearch(q, 0);
+        } else if (e.key === 'Escape') {
+            closeSearch();
+        }
+    });
+
+    searchMoreBtn.addEventListener('click', () => {
+        const entries = searchResults.querySelectorAll('.msg-entry');
+        const lastSeq = entries.length ? Number(entries[entries.length - 1].dataset.seq) : 0;
+        if (searchState.q && lastSeq) runSearch(searchState.q, lastSeq);
+    });
+
+    // Clicking a result jumps into the main list when that message is still in the DOM.
+    searchResults.addEventListener('click', (e) => {
+        if (e.target.closest('.copy-btn') || e.target.closest('a.autolink')) return;
+        const entry = e.target.closest('.msg-entry');
+        if (!entry || entry.dataset.seq == null) return;
+        jumpToSeq(Number(entry.dataset.seq));
+    });
+
+    function jumpToSeq(seq) {
+        const node = messagesEl.querySelector(`.msg-entry[data-seq="${seq}"]`);
+        if (!node) {
+            OC.Toast.info(OC.I18N.t('chat.search.notLoaded'));
+            return;
+        }
+        closeSearch();
+        node.scrollIntoView({ block: 'center' });
+        node.classList.add('flash');
+        setTimeout(() => node.classList.remove('flash'), 2000);
+    }
 
     // ───────────── Load style config + max length ─────────────
     try {

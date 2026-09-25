@@ -254,6 +254,148 @@
         return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
     }
 
+    /** "Today" / "Yesterday" / a short locale date — used for chat date separators and account info. */
+    function fmtDate(ts) {
+        const d = new Date(ts || Date.now());
+        const startOf = (x) => new Date(x.getFullYear(), x.getMonth(), x.getDate()).getTime();
+        const diffDays = Math.round((startOf(new Date()) - startOf(d)) / 86400000);
+        if (diffDays === 0) {
+            const today = I18N.t('date.today');
+            return today === 'date.today' ? 'Today' : today;
+        }
+        if (diffDays === 1) {
+            const yesterday = I18N.t('date.yesterday');
+            return yesterday === 'date.yesterday' ? 'Yesterday' : yesterday;
+        }
+        return d.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
+    }
+
+    /**
+     * Escapes chat text and turns http(s):// links into real anchors.
+     * Returns a DocumentFragment — safe to append to any element.
+     */
+    function renderText(text) {
+        const frag = document.createDocumentFragment();
+        const s = String(text == null ? '' : text);
+        const parts = s.split(/(https?:\/\/[^\s]+)/g);
+        for (const part of parts) {
+            if (!part) continue;
+            if (/^https?:\/\//i.test(part)) {
+                const url = part.replace(/[.,;:!?)\]}>]+$/, '');
+                const a = document.createElement('a');
+                a.href = url;
+                a.target = '_blank';
+                a.rel = 'noopener noreferrer';
+                a.textContent = url;
+                a.className = 'autolink';
+                frag.appendChild(a);
+            } else {
+                frag.appendChild(document.createTextNode(part));
+            }
+        }
+        return frag;
+    }
+
+    /** Copies text to the clipboard; returns true on success. Falls back to execCommand for older browsers. */
+    async function copyText(text) {
+        try {
+            await navigator.clipboard.writeText(String(text));
+            return true;
+        } catch (_) {
+            try {
+                const ta = document.createElement('textarea');
+                ta.value = String(text);
+                ta.style.position = 'fixed';
+                ta.style.opacity = '0';
+                document.body.appendChild(ta);
+                ta.select();
+                const ok = document.execCommand('copy');
+                ta.remove();
+                return ok;
+            } catch (_) {
+                return false;
+            }
+        }
+    }
+
+    function debounce(fn, ms) {
+        let t = null;
+        return (...args) => { clearTimeout(t); t = setTimeout(() => fn(...args), ms); };
+    }
+
+    // ───────────────────────────── Sound (opt-in "new message" blip) ─────────────────────────────
+    const Sound = {
+        ctx: null,
+        enabled() { return localStorage.getItem('oc.sound') === '1'; },
+        setEnabled(v) { localStorage.setItem('oc.sound', v ? '1' : '0'); },
+        _ensure() {
+            if (!this.ctx) {
+                const AC = window.AudioContext || window.webkitAudioContext;
+                if (!AC) return null;
+                this.ctx = new AC();
+            }
+            if (this.ctx.state === 'suspended') this.ctx.resume().catch(() => {});
+            return this.ctx;
+        },
+        /** Short, quiet two-tone blip. Only plays when the user opted in. */
+        beep() {
+            if (!this.enabled()) return;
+            try {
+                const ctx = this._ensure();
+                if (!ctx) return;
+                const now = ctx.currentTime;
+                const osc = ctx.createOscillator();
+                const gain = ctx.createGain();
+                osc.type = 'sine';
+                osc.frequency.setValueAtTime(740, now);
+                osc.frequency.setValueAtTime(988, now + 0.07);
+                gain.gain.setValueAtTime(0.0001, now);
+                gain.gain.exponentialRampToValueAtTime(0.07, now + 0.012);
+                gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.16);
+                osc.connect(gain);
+                gain.connect(ctx.destination);
+                osc.start(now);
+                osc.stop(now + 0.17);
+            } catch (_) {}
+        },
+        /** Call from a user gesture so the AudioContext is allowed to start. */
+        unlock() {
+            if (!this.enabled()) return;
+            this._ensure();
+        },
+    };
+
+    // ───────────────────────────── Unread count in the page title ─────────────────────────────
+    const TitleBadge = {
+        n: 0,
+        base: null,
+        incr() { this.n++; this.apply(); },
+        reset() { this.n = 0; this.apply(); },
+        apply() {
+            if (this.base == null) this.base = document.title;
+            document.title = this.n > 0 ? `(${this.n}) ${this.base}` : this.base;
+        },
+    };
+
+    // ───────────────────────────── Password visibility toggles ─────────────────────────────
+    // Buttons carry data-pw-toggle="#selector"; they swap the input between type=password and text.
+    function initPasswordToggles(scope) {
+        const root = scope || document;
+        root.querySelectorAll('[data-pw-toggle]').forEach(btn => {
+            if (btn.dataset.pwBound) return;
+            btn.dataset.pwBound = '1';
+            const input = document.querySelector(btn.dataset.pwToggle);
+            if (!input) return;
+            btn.addEventListener('click', () => {
+                const show = input.type === 'password';
+                input.type = show ? 'text' : 'password';
+                btn.classList.toggle('on', show);
+                btn.title = I18N.t(show ? 'login.hidePassword' : 'login.showPassword');
+                input.focus();
+            });
+        });
+    }
+
     function setLoading(btn, loading) {
         if (!btn) return;
         btn.classList.toggle('loading', !!loading);
@@ -274,5 +416,10 @@
         btn.appendChild(label);
     }
 
-    global.OC = { API, I18N, Toast, Modal, Auth, renderNav, escapeHtml, fmtTime, setLoading, ensureSpinner, SUPPORTED_LOCALES };
+    global.OC = {
+        API, I18N, Toast, Modal, Auth, renderNav,
+        escapeHtml, fmtTime, fmtDate, renderText, copyText, debounce,
+        Sound, TitleBadge, initPasswordToggles,
+        setLoading, ensureSpinner, SUPPORTED_LOCALES,
+    };
 })(window);

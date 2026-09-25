@@ -2,6 +2,7 @@
 (async function () {
     'use strict';
     await OC.I18N.load();
+    OC.initPasswordToggles();
 
     const params = new URLSearchParams(location.search);
     // Any force-logout reason means our cookie is stale: kicked/login_elsewhere, password_changed, account_deleted.

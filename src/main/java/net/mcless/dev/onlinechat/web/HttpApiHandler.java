@@ -35,7 +35,9 @@ import java.io.ByteArrayOutputStream;
 import java.io.InputStream;
 import java.net.URLDecoder;
 import java.nio.charset.StandardCharsets;
+import java.util.Comparator;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -74,6 +76,8 @@ public class HttpApiHandler extends SimpleChannelInboundHandler<FullHttpRequest>
      */
     private static final LoginRateLimiter LOGIN_LIMITER = new LoginRateLimiter();
     private static final RateLimiter REGISTER_LIMITER = new RateLimiter(3_600_000L); // 1-hour window
+    /** Full-archive search is disk I/O; cap it per IP even though it requires auth. */
+    private static final RateLimiter SEARCH_LIMITER = new RateLimiter(60_000L);      // 30 searches/min/IP
 
     public HttpApiHandler(AccountManager accounts, TokenService tokens, BindingManager bindings,
                           ChatBridge bridge, WebSessionManager sessions, TwoFactorGuard twoFactor,
@@ -215,6 +219,8 @@ public class HttpApiHandler extends SimpleChannelInboundHandler<FullHttpRequest>
                 case "/api/bind" -> handleBind(ctx, req);
                 case "/api/unbind" -> handleUnbind(ctx, req);
                 case "/api/history" -> handleHistory(ctx, req, qs);
+                case "/api/search" -> handleSearch(ctx, req, qs);
+                case "/api/webusers" -> handleWebUsers(ctx, req);
                 case "/api/online" -> handleOnline(ctx, req);
                 case "/api/account/password" -> handleChangePassword(ctx, req);
                 case "/api/account/delete" -> handleDeleteAccount(ctx, req);
@@ -631,6 +637,86 @@ public class HttpApiHandler extends SimpleChannelInboundHandler<FullHttpRequest>
                 req.release();
             }
         });
+    }
+
+    /**
+     * {@code GET /api/search?q=<text>&before=<seq>&limit=<n>} — full-archive chat search.
+     * Requires auth. Matches message text and author names case-insensitively, newest first; the
+     * {@code before} cursor (a message {@code id}) pages further into older hits.
+     */
+    private void handleSearch(ChannelHandlerContext ctx, FullHttpRequest req, QueryStringDecoder qs) {
+        Optional<Account> opt = auth(req);
+        if (opt.isEmpty()) { sendJson(ctx, req, HttpResponseStatus.UNAUTHORIZED, error("Unauthorized")); return; }
+        if (!HttpMethod.GET.equals(req.method())) {
+            sendJson(ctx, req, HttpResponseStatus.METHOD_NOT_ALLOWED, error("GET required"));
+            return;
+        }
+        String ip = WebSessionManager.ipOf(ctx.channel().remoteAddress() == null ? "?" : ctx.channel().remoteAddress().toString());
+        if (!SEARCH_LIMITER.allow(ip, 30)) {
+            sendJson(ctx, req, HttpResponseStatus.TOO_MANY_REQUESTS, error("Search rate limit exceeded, try again later"));
+            return;
+        }
+        String q = firstParam(qs, "q");
+        if (q == null || q.isBlank() || q.trim().length() > 64) {
+            sendJson(ctx, req, HttpResponseStatus.BAD_REQUEST, error("q is required (1-64 characters)"));
+            return;
+        }
+        long before = parseLongOr(firstParam(qs, "before"), 0L);
+        int limit = (int) parseLongOr(firstParam(qs, "limit"), ServerConfig.CHAT_PAGE_SIZE.get());
+        // The archive lives on disk: keep the scan off the Netty event loop.
+        req.retain();
+        blockingPool.execute(() -> {
+            try {
+                var page = bridge.searchMessages(q, before, limit);
+                JsonObject o = new JsonObject();
+                o.addProperty("ok", true);
+                var arr = new com.google.gson.JsonArray();
+                page.messages().forEach(arr::add);
+                o.add("messages", arr);
+                o.addProperty("hasMore", page.hasMore());
+                sendJson(ctx, req, HttpResponseStatus.OK, o);
+            } catch (Exception e) {
+                OnlineChat.LOGGER.error("[OnlineChat] Search query failure", e);
+                sendJson(ctx, req, HttpResponseStatus.INTERNAL_SERVER_ERROR, error("Internal error"));
+            } finally {
+                req.release();
+            }
+        });
+    }
+
+    /** {@code GET /api/webusers} — which web accounts have a live authenticated socket right now. Requires auth. */
+    private void handleWebUsers(ChannelHandlerContext ctx, FullHttpRequest req) {
+        Optional<Account> opt = auth(req);
+        if (opt.isEmpty()) { sendJson(ctx, req, HttpResponseStatus.UNAUTHORIZED, error("Unauthorized")); return; }
+        if (!HttpMethod.GET.equals(req.method())) {
+            sendJson(ctx, req, HttpResponseStatus.METHOD_NOT_ALLOWED, error("GET required"));
+            return;
+        }
+        String meName = opt.get().getUsername();
+        Map<String, WebSessionManager.Session> byUser = new LinkedHashMap<>();
+        for (WebSessionManager.Session s : sessions.all()) {
+            if (!s.isAuthenticated()) continue;
+            byUser.putIfAbsent(s.username.toLowerCase(java.util.Locale.ROOT), s);
+        }
+        JsonObject o = new JsonObject();
+        o.addProperty("ok", true);
+        var arr = new com.google.gson.JsonArray();
+        byUser.values().stream()
+                .sorted(Comparator.comparing(s -> s.username.toLowerCase(java.util.Locale.ROOT)))
+                .forEach(s -> {
+                    JsonObject u = new JsonObject();
+                    u.addProperty("username", s.username);
+                    u.addProperty("self", s.username.equalsIgnoreCase(meName));
+                    Account acc = accounts.byUsername(s.username).orElse(null);
+                    if (acc != null && acc.isBound()) {
+                        u.addProperty("mcName", acc.getBoundPlayerName());
+                        u.addProperty("mcUuid", acc.getBoundPlayerUuid().toString());
+                    }
+                    arr.add(u);
+                });
+        o.add("webUsers", arr);
+        o.addProperty("count", arr.size());
+        sendJson(ctx, req, HttpResponseStatus.OK, o);
     }
 
     private static String firstParam(QueryStringDecoder qs, String name) {

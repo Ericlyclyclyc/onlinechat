@@ -149,6 +149,11 @@ public class ChatBridge {
         return store.before(cursorSeq, limit);
     }
 
+    /** Full-archive search (see {@link MessageStore#search}); run it off the Netty event loop. */
+    public MessageStore.Page searchMessages(String query, long beforeSeq, int limit) {
+        return store.search(query, beforeSeq, limit);
+    }
+
     // ─────────────────────────── Web → Game ───────────────────────────
 
     /**
@@ -280,6 +285,25 @@ public class ChatBridge {
     public void emitWebSystem(String text) {
         if (!CommonConfig.BRIDGE_JOIN_LEAVE.get()) return;
         rememberAndBroadcast(new ChatMessage(System.currentTimeMillis(), Kind.SYSTEM, null, null, text, "web"));
+    }
+
+    /**
+     * Sends an operator announcement to BOTH sides: a highlighted line in the in-game chat and a
+     * {@code system} message with {@code systemKind: "announce"} to every web client (which styles it
+     * prominently). Not gated by {@code bridgeWebPresence} — an announcement is an explicit action.
+     */
+    public void emitAnnouncement(String text) {
+        if (text == null || text.isBlank()) return;
+        String t = text.trim();
+        MinecraftServer srv = this.server;
+        if (srv != null) {
+            MutableComponent line = Component.empty()
+                    .append(Lang.text("onlinechat.prefix").withStyle(ChatFormatting.GOLD))
+                    .append(Lang.text("onlinechat.command.announce.line", t).withStyle(ChatFormatting.LIGHT_PURPLE));
+            srv.getPlayerList().broadcastSystemMessage(line, false);
+        }
+        OnlineChat.LOGGER.info("[OnlineChat] Announcement: {}", t);
+        rememberAndBroadcast(new ChatMessage(System.currentTimeMillis(), Kind.SYSTEM, null, null, t, "announce"));
     }
 
     /** Broadcast a system-style line to the in-game chat. */

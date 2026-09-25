@@ -5,7 +5,7 @@
     const me = await OC.Auth.me();
     OC.renderNav(null, me);
 
-    // Show server status
+    // Show server status + the quick stats grid
     try {
         const { ok, body } = await OC.API.get('/api/status');
         const statusEl = document.getElementById('status');
@@ -18,6 +18,9 @@
                 max: body.maxPlayers || 0,
                 web: body.onlineWeb || 0,
             });
+            document.getElementById('stat-players').textContent = `${body.onlinePlayers || 0}/${body.maxPlayers || 0}`;
+            document.getElementById('stat-web').textContent = String(body.onlineWeb || 0);
+            document.getElementById('stat-motd').textContent = body.motd || '-';
         } else {
             statusEl.classList.add('err');
         }

@@ -261,6 +261,48 @@
 }
 ```
 
+查询参数：`?before=<id>&limit=<n>` —— 不带 `before` 时返回最新一页；带 `before` 时返回严格早于该消息
+`id`（与 WebSocket 相同的游标）的最多 `limit` 条消息，按时间正序，并用 `hasMore` 表示是否还有更早的历史。
+
+### `GET /api/search`
+
+需要认证。对**磁盘上的完整归档**做大小写不敏感的全文搜索（匹配作者名与消息文本），最新的在前。
+
+查询参数：
+* `q` —— 搜索文本，1–64 个字符（必填）。
+* `before` —— 可选的消息 `id` 游标；只考虑严格早于它的消息（用于结果很多时的翻页）。
+* `limit` —— 每页条数，默认 `storage.chatPageSize`（上限 200）。
+
+```json
+{
+  "ok": true,
+  "messages": [
+    { "id": 4812, "type": "web", "ts": 1710514801500, "author": "alice", "text": "末影龙在哪里？" }
+  ],
+  "hasMore": false
+}
+```
+
+消息带归档 `id`（可作为 `before` 游标）。限流：每 IP 每分钟 30 次。错误：`400`（查询不合法）、
+`401`、`429`。
+
+### `GET /api/webusers`
+
+需要认证。列出当前拥有已认证 WebSocket 连接的网页账号（按用户名去重）及其 Minecraft 绑定：
+
+```json
+{
+  "ok": true,
+  "count": 2,
+  "webUsers": [
+    { "username": "alice", "mcName": "Steve", "mcUuid": "…", "self": false },
+    { "username": "bob", "self": true }
+  ]
+}
+```
+
+`self` 标记调用者自己；未绑定的用户不包含 `mcName`/`mcUuid`。错误：`401`。
+
 ### `GET /api/online`
 
 公开。列出游戏内玩家以及网页用户总数。
@@ -341,7 +383,7 @@
 | `history` | `{ messages:[…] }` | 环形缓冲区的快照。 |
 | `chat` | `{ ts, author, authorUuid, text }` | 来自 Minecraft 玩家的游戏内聊天。渲染时加 `[In Game]` 前缀。 |
 | `web` | `{ ts, author, authorUuid?, text }` | 来自另一位网页用户的聊天（绝不回显给发送者本人）。渲染时加 `[Web Chat]` 前缀。 |
-| `system` | `{ ts, text, systemKind }` | 加入 / 退出 / 死亡 / 进度 / 网页在线状态消息。`systemKind` ∈ `join, quit, death, advancement, web`。 |
+| `system` | `{ ts, text, systemKind }` | 加入 / 退出 / 死亡 / 进度 / 网页在线状态消息。`systemKind` ∈ `join, quit, death, advancement, web, announce`。`announce` 来自 `/onlinechat announce` 命令，网页端会以醒目样式渲染。 |
 | `bind_pending` | `{ code, mcName, expiresAt }` | 确认提示已发送给 MC 玩家。开始倒计时。 |
 | `bind_ok` | `{ code, mcName }` | 玩家点击了 **[是]** —— 绑定现已存储。 |
 | `bind_denied` | `{ code, mcName, reason }` | 玩家点击了 **[否]**。 |
@@ -384,6 +426,7 @@ WebSocket 错误使用上面列出的 `error` 或 `*_error` 帧；除非底层�
 | 接入面 | 限制 | 可配置项 |
 |--------|------|----------|
 | 登录 | 在 `auth.loginCooldownSeconds` 内，每个 IP `auth.maxLoginAttempts` 次失败 | `onlinechat-server.toml` |
+| 搜索 | 每 IP 每分钟 30 次 `/api/search`（需认证） | 硬编码 |
 | WebSocket 帧大小 | 每个文本帧 64 KiB | 硬编码 |
 | HTTP 体大小 | 1 MiB | 硬编码 |
 | 聊天消息长度 | `format.maxWebMessageLength` | `onlinechat-common.toml` |

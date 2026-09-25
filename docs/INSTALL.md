@@ -29,7 +29,7 @@ Windows PowerShell, macOS Terminal and Linux bash are all supported.
 The output jar is written to:
 
 ```
-build/libs/onlinechat-1.21.1-neoforge-0.0.1-alpha.jar
+build/libs/onlinechat-1.21.1-neoforge-0.0.2-alpha.jar
 ```
 
 > The file name follows the NeoForge convention `<modid>-<mcversion>-<loader>-<modversion>.jar`.
@@ -59,11 +59,23 @@ The mod serves HTTPS using PEM files. By default it reads:
 
 ```
 ./ssl/fullchain.pem   # certificate + intermediate chain
-./ssl/privkey.pem     # private key (PKCS#8 or PKCS#1, may be password-protected)
+./ssl/privkey.pem     # private key, unencrypted PKCS#8 (or encrypted PKCS#8 + privateKeyPassword)
 ```
 
 Relative paths are resolved against the **working directory** of the Minecraft server
 (the folder that contains `server.properties`).
+
+> **The key must be PKCS#8.** The embedded web server reads keys through the JDK TLS provider,
+> which only understands `-----BEGIN PRIVATE KEY-----` (PKCS#8) — traditional SEC1
+> (`-----BEGIN EC PRIVATE KEY-----`) and PKCS#1 (`-----BEGIN RSA PRIVATE KEY-----`) keys are
+> detected at start-up and refused with an actionable guide instead of a cryptic error.
+> Convert such a key once with:
+>
+> ```bash
+> openssl pkcs8 -topk8 -nocrypt -in privkey.pem -out privkey-pkcs8.pem
+> ```
+>
+> (drop `-nocrypt` and set `tls.privateKeyPassword` instead if you prefer an encrypted PKCS#8 key).
 
 > **The directory is configurable.** Set `tls.certDir` (default `./ssl`) to point at any folder —
 > for example your Let's Encrypt `live/<domain>/` directory — and the mod will read
@@ -113,7 +125,7 @@ If your key is encrypted, put the passphrase in `config/onlinechat-server.toml`:
 
 ## 4. Install on a dedicated server
 
-1. Drop `onlinechat-1.21.1-neoforge-0.0.1-alpha.jar` into your server's `mods/` folder.
+1. Drop `onlinechat-1.21.1-neoforge-0.0.2-alpha.jar` into your server's `mods/` folder.
 2. Make sure the TLS material exists relative to the server's working directory — by default
    `./ssl/fullchain.pem` and `./ssl/privkey.pem` (or set `tls.certDir` to wherever they live).
 3. Start the server as usual (`java -jar ...` or your start script).

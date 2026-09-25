@@ -103,18 +103,24 @@ any pending mutations.
 
 ### Why Netty (and not `com.sun.net.httpserver` or a third-party lib)?
 
-Minecraft already bundles Netty 4.1.97.Final (`netty-codec-http`, `netty-handler`,
-`netty-transport`, …). Using Netty means:
+Minecraft already bundles most of Netty 4.1.97.Final (`netty-handler`, `netty-transport`,
+`netty-codec`, …) — except `netty-codec-http`, which contains the HTTP/WebSocket codecs this mod
+needs. Using Netty means:
 
-* **Zero extra runtime dependencies** — nothing to shade, no jar-in-jar, no
-  version conflicts with other mods.
+* **Zero extra runtime dependencies** — `netty-codec-http` is the one artefact shipped inside the
+  mod jar via **JarInJar** (`jarJar(...) { transitive = false }` in `build.gradle`); everything else
+  comes from Minecraft itself, so there are no duplicate Netty classes on the runtime classpath.
 * Native support for the WebSocket protocol (`WebSocketServerHandshaker`,
   `TextWebSocketFrame`) and TLS (`SslContextBuilder.forServer(File, File)`).
 * Battle-tested event-loop model, matching Minecraft's own network layer.
 
 The compile classpath needs an explicit `compileOnly` on the Netty artefacts
 (see `build.gradle`) because ModDevGradle does not re-export Minecraft's
-transitive dependencies. At runtime the classes come from Minecraft itself.
+transitive dependencies. At runtime the classes come from Minecraft itself, except
+`netty-codec-http`, which is jarJar'd — and is additionally put on ModDevGradle's
+dev-only `additionalRuntimeClasspath` configuration so `runServer` / `runClient`
+work in the IDE workspace (on MC ≤ 1.21.8 the Gradle run configurations do not
+see jarJar'd artefacts).
 
 ### Why stateless HMAC tokens and not sessions?
 

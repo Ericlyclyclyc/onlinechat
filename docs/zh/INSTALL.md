@@ -28,7 +28,7 @@ Windows PowerShell、macOS Terminal 与 Linux bash 均受支持。
 输出的 jar 会写入：
 
 ```
-build/libs/onlinechat-1.21.1-neoforge-0.0.1-alpha.jar
+build/libs/onlinechat-1.21.1-neoforge-0.0.2-alpha.jar
 ```
 
 > 文件名遵循 NeoForge 约定 `<modid>-<mcversion>-<loader>-<modversion>.jar`。
@@ -57,10 +57,21 @@ jar 中包含：
 
 ```
 ./ssl/fullchain.pem   # 证书 + 中间证书链
-./ssl/privkey.pem     # 私钥（PKCS#8 或 PKCS#1，可带密码保护）
+./ssl/privkey.pem     # 私钥，未加密 PKCS#8（或加密 PKCS#8 + privateKeyPassword）
 ```
 
 相对路径以 Minecraft 服务器的 **工作目录**（即包含 `server.properties` 的文件夹）为基准解析。
+
+> **私钥必须是 PKCS#8 格式。** 内置网页服务器通过 JDK TLS 提供程序读取私钥，它只认识
+> `-----BEGIN PRIVATE KEY-----`（PKCS#8）—— 传统的 SEC1（`-----BEGIN EC PRIVATE KEY-----`）与
+> PKCS#1（`-----BEGIN RSA PRIVATE KEY-----`）密钥会在启动时被检测并拒绝，同时打印可操作的
+> 修复指引，而不是晦涩的报错。可以一次性转换：
+>
+> ```bash
+> openssl pkcs8 -topk8 -nocrypt -in privkey.pem -out privkey-pkcs8.pem
+> ```
+>
+> （如果更想使用加密的 PKCS#8 密钥，去掉 `-nocrypt` 并在配置中设置 `tls.privateKeyPassword`。）
 
 > **目录可配置。** 设置 `tls.certDir`（默认 `./ssl`）指向任意文件夹 —— 例如你的 Let's Encrypt
 > `live/<domain>/` 目录 —— 模组就会读取 `<certDir>/fullchain.pem` 与 `<certDir>/privkey.pem`。
@@ -107,7 +118,7 @@ openssl req -x509 -newkey rsa:2048 -nodes -days 365 \
 
 ## 4. 在专用服务器上安装
 
-1. 把 `onlinechat-1.21.1-neoforge-0.0.1-alpha.jar` 放入服务器的 `mods/` 文件夹。
+1. 把 `onlinechat-1.21.1-neoforge-0.0.2-alpha.jar` 放入服务器的 `mods/` 文件夹。
 2. 确保相对于服务器工作目录存在 TLS 材料 —— 默认是 `./ssl/fullchain.pem` 与
    `./ssl/privkey.pem`（或设置 `tls.certDir` 指向它们所在的目录）。
 3. 照常启动服务器（`java -jar ...` 或你的启动脚本）。

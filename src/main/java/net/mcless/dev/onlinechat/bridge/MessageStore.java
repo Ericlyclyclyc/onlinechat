@@ -20,6 +20,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Deque;
 import java.util.List;
+import java.util.Locale;
 
 /**
  * Hybrid in-memory + on-disk store for bridged chat messages.
@@ -207,6 +208,48 @@ public class MessageStore {
         List<JsonObject> msgs = new ArrayList<>(entries.size());
         for (Entry e : entries) msgs.add(toClientJson(e.seq(), e.msg()));
         return new Page(msgs, lo > 0);               // hasMore iff something older than `lo` remains
+    }
+
+    /**
+     * Case-insensitive substring search over the whole archive, newest first.
+     * <p>
+     * Matches are checked against the message text and the author name. {@code beforeSeq <= 0} starts
+     * from the newest message; otherwise only messages with seq strictly below {@code beforeSeq} are
+     * considered, so the caller can page through many hits with the same {@code id} cursor the history
+     * API uses. The scan walks the file backwards in chunks (via {@link #diskOffsets}), so it is
+     * O(archive) in the worst case but never loads the whole archive into memory at once. Callers
+     * should run it off the Netty event loop.
+     */
+    public Page search(String query, long beforeSeq, int limit) {
+        synchronized (lock) {
+            int lim = Math.max(1, Math.min(MAX_LIMIT, limit));
+            String q = query == null ? "" : query.trim().toLowerCase(Locale.ROOT);
+            if (q.isEmpty() || q.length() > 64) return new Page(List.of(), false);
+            long cursor = beforeSeq <= 0 ? Long.MAX_VALUE : beforeSeq - 1;
+            int hi = floorIndex(cursor);
+            List<JsonObject> out = new ArrayList<>();
+            boolean hasMore = false;
+            final int chunk = 64;
+            while (hi >= 0) {
+                int lo = Math.max(0, hi - chunk + 1);
+                List<Entry> entries = readEntries(lo, hi);
+                for (int i = entries.size() - 1; i >= 0; i--) {
+                    Entry e = entries.get(i);
+                    if (matches(e.msg(), q)) {
+                        if (out.size() >= lim) { hasMore = true; break; }
+                        out.add(toClientJson(e.seq(), e.msg()));
+                    }
+                }
+                if (hasMore) break;
+                hi = lo - 1;
+            }
+            return new Page(out, hasMore);
+        }
+    }
+
+    private static boolean matches(ChatBridge.ChatMessage m, String q) {
+        if (m.text() != null && m.text().toLowerCase(Locale.ROOT).contains(q)) return true;
+        return m.author() != null && m.author().toLowerCase(Locale.ROOT).contains(q);
     }
 
     /** Index of the largest archived seq {@code <= target}, or -1 when none qualifies. */

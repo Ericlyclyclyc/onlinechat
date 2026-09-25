@@ -274,6 +274,52 @@ messages, oldest first).
 }
 ```
 
+Query parameters: `?before=<id>&limit=<n>` — without `before` the newest page is returned; with it, the
+page of up to `limit` messages strictly older than the message `id` (the same cursor the WebSocket uses),
+oldest-first with `hasMore` indicating whether even older history exists.
+
+### `GET /api/search`
+
+Requires auth. Case-insensitive substring search over the **whole on-disk archive** (author names and
+message text), newest first.
+
+Query parameters:
+* `q` — search text, 1–64 characters (required).
+* `before` — optional message `id` cursor; only messages strictly older than it are considered
+  (pagination for many hits).
+* `limit` — page size, default `storage.chatPageSize` (cap 200).
+
+```json
+{
+  "ok": true,
+  "messages": [
+    { "id": 4812, "type": "web", "ts": 1710514801500, "author": "alice", "text": "where is the Ender dragon?" }
+  ],
+  "hasMore": false
+}
+```
+
+Messages carry their archive `id` (usable as the `before` cursor). Rate-limited to 30 requests per
+minute per IP. Errors: `400` (bad query), `401`, `429`.
+
+### `GET /api/webusers`
+
+Requires auth. Which web accounts currently have a live authenticated WebSocket, deduplicated by
+username, plus their Minecraft binding:
+
+```json
+{
+  "ok": true,
+  "count": 2,
+  "webUsers": [
+    { "username": "alice", "mcName": "Steve", "mcUuid": "…", "self": false },
+    { "username": "bob", "self": true }
+  ]
+}
+```
+
+`self` marks the caller's own entry; unbound users omit `mcName`/`mcUuid`. Errors: `401`.
+
 ### `GET /api/online`
 
 Public. Lists in-game players and the total web-user count.
@@ -360,7 +406,7 @@ the client may try again with a fresh token.
 | `history` | `{ messages:[…] }` | Snapshot of the ring buffer. |
 | `chat` | `{ ts, author, authorUuid, text }` | In-game chat from a Minecraft player. Prefix with `[In Game]` on render. |
 | `web` | `{ ts, author, authorUuid?, text }` | Chat from another web user (never echoed back to the sender). Prefix with `[Web Chat]` on render. |
-| `system` | `{ ts, text, systemKind }` | Join / quit / death / advancement / web-presence message. `systemKind` ∈ `join, quit, death, advancement, web`. |
+| `system` | `{ ts, text, systemKind }` | Join / quit / death / advancement / web-presence message. `systemKind` ∈ `join, quit, death, advancement, web, announce`. `announce` comes from `/onlinechat announce` and is styled prominently. |
 | `bind_pending` | `{ code, mcName, expiresAt }` | Confirmation prompt sent to the MC player. Start a countdown. |
 | `bind_ok` | `{ code, mcName }` | Player clicked **[Yes]** — binding is now stored. |
 | `bind_denied` | `{ code, mcName, reason }` | Player clicked **[No]**. |
@@ -404,6 +450,7 @@ stays open unless the underlying transport fails.
 | Surface | Limit | Configurable via |
 |---------|-------|------------------|
 | Login | `auth.maxLoginAttempts` failures per IP inside `auth.loginCooldownSeconds` | `onlinechat-server.toml` |
+| Search | 30 `/api/search` requests per minute per IP (auth required) | hard-coded |
 | WebSocket frame size | 64 KiB per text frame | hard-coded |
 | HTTP body size | 1 MiB | hard-coded |
 | Chat message length | `format.maxWebMessageLength` | `onlinechat-common.toml` |

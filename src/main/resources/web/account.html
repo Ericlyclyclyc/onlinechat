@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
     <meta name="theme-color" content="#08091a">
     <title>Account · Online Chat</title>
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg">
     <link rel="stylesheet" href="/style.css">
 </head>
 <body>
@@ -21,8 +22,16 @@
             <h1 data-i18n="account.title">Account</h1>
             <p class="subtitle" data-i18n="account.subtitle">Manage your Minecraft binding, two-factor protection and password.</p>
 
+            <!-- ───────── Account information ───────── -->
+            <section class="bind-grid" id="section-info">
+                <h2 class="section-title" data-i18n="account.info.title">Account information</h2>
+                <div class="kv"><span class="k" data-i18n="login.username">Username</span><span class="v" id="info-username">—</span></div>
+                <div class="kv"><span class="k" data-i18n="account.joined">Joined</span><span class="v" id="acc-joined">—</span></div>
+                <div class="kv"><span class="k" data-i18n="account.lastLogin">Last sign-in</span><span class="v" id="acc-lastlogin">—</span></div>
+            </section>
+
             <!-- ───────── Binding ───────── -->
-            <section class="bind-grid" id="section-current">
+            <section class="bind-grid mt-16" id="section-current">
                 <h2 class="section-title" data-i18n="bind.currentTitle">Current binding</h2>
                 <div id="current-body">
                     <p class="text-mute small" data-i18n="bind.notBound">Not bound yet.</p>
@@ -95,16 +104,37 @@
                 <form id="form-password" novalidate autocomplete="off">
                     <div class="field">
                         <label for="pw-current" data-i18n="account.password.current">Current password</label>
-                        <input class="input" id="pw-current" type="password" autocomplete="current-password" required>
+                        <div class="input-wrap">
+                            <input class="input" id="pw-current" type="password" autocomplete="current-password" required>
+                            <button type="button" class="pw-toggle" data-pw-toggle="#pw-current" tabindex="-1"
+                                    data-i18n-title="login.showPassword" title="Show password" aria-label="Show password">
+                                <svg class="icon-on" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+                                <svg class="icon-off" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
+                            </button>
+                        </div>
                     </div>
                     <div class="field">
                         <label for="pw-next" data-i18n="account.password.next">New password</label>
-                        <input class="input" id="pw-next" type="password" autocomplete="new-password" required minlength="6">
+                        <div class="input-wrap">
+                            <input class="input" id="pw-next" type="password" autocomplete="new-password" required minlength="6">
+                            <button type="button" class="pw-toggle" data-pw-toggle="#pw-next" tabindex="-1"
+                                    data-i18n-title="login.showPassword" title="Show password" aria-label="Show password">
+                                <svg class="icon-on" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+                                <svg class="icon-off" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
+                            </button>
+                        </div>
                         <span class="hint" id="pw-hint" data-i18n="login.password.hint">At least 6 characters.</span>
                     </div>
                     <div class="field">
                         <label for="pw-next2" data-i18n="account.password.next2">Confirm new password</label>
-                        <input class="input" id="pw-next2" type="password" autocomplete="new-password" required minlength="6">
+                        <div class="input-wrap">
+                            <input class="input" id="pw-next2" type="password" autocomplete="new-password" required minlength="6">
+                            <button type="button" class="pw-toggle" data-pw-toggle="#pw-next2" tabindex="-1"
+                                    data-i18n-title="login.showPassword" title="Show password" aria-label="Show password">
+                                <svg class="icon-on" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+                                <svg class="icon-off" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
+                            </button>
+                        </div>
                     </div>
                     <button class="btn primary block" type="submit" id="pw-submit">
                         <span class="spinner"></span><span data-i18n="account.password.submit">Update password</span>
@@ -119,7 +149,14 @@
                 <form id="form-delete" novalidate autocomplete="off">
                     <div class="field">
                         <label for="del-password" data-i18n="account.delete.password">Confirm with your password</label>
-                        <input class="input" id="del-password" type="password" autocomplete="current-password" required>
+                        <div class="input-wrap">
+                            <input class="input" id="del-password" type="password" autocomplete="current-password" required>
+                            <button type="button" class="pw-toggle" data-pw-toggle="#del-password" tabindex="-1"
+                                    data-i18n-title="login.showPassword" title="Show password" aria-label="Show password">
+                                <svg class="icon-on" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+                                <svg class="icon-off" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
+                            </button>
+                        </div>
                     </div>
                     <button class="btn danger block" type="submit" id="del-submit">
                         <span class="spinner"></span><span data-i18n="account.delete.submit">Delete my account</span>

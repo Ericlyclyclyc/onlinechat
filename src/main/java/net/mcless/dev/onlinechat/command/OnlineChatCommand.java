@@ -7,6 +7,7 @@ import net.mcless.dev.onlinechat.OnlineChat;
 import net.mcless.dev.onlinechat.account.Account;
 import net.mcless.dev.onlinechat.auth.TwoFactorGuard;
 import net.mcless.dev.onlinechat.bridge.BindingManager;
+import net.mcless.dev.onlinechat.bridge.WebSessionManager;
 import net.mcless.dev.onlinechat.config.ServerConfig;
 import net.mcless.dev.onlinechat.i18n.Lang;
 import net.minecraft.ChatFormatting;
@@ -18,6 +19,10 @@ import net.minecraft.network.chat.HoverEvent;
 import net.minecraft.network.chat.MutableComponent;
 import net.minecraft.server.level.ServerPlayer;
 
+import java.util.Comparator;
+import java.util.LinkedHashMap;
+import java.util.Locale;
+import java.util.Map;
 import java.util.Optional;
 
 /**
@@ -47,6 +52,13 @@ public class OnlineChatCommand {
                                         .executes(OnlineChatCommand::denyBind))))
                 .then(Commands.literal("status").executes(OnlineChatCommand::status))
                 .then(Commands.literal("unbind").executes(OnlineChatCommand::unbind))
+                .then(Commands.literal("announce")
+                        .requires(src -> src.hasPermission(2))
+                        .then(Commands.argument("text", StringArgumentType.greedyString())
+                                .executes(OnlineChatCommand::announce)))
+                .then(Commands.literal("webusers")
+                        .requires(src -> src.hasPermission(2))
+                        .executes(OnlineChatCommand::webUsers))
                 .then(Commands.literal("reload")
                         .requires(src -> src.hasPermission(2))
                         .executes(OnlineChatCommand::reload))
@@ -165,6 +177,55 @@ public class OnlineChatCommand {
         if (runtime == null) return 0;
         runtime.reloadWebServer();
         ctx.getSource().sendSuccess(() -> prefix().append(Lang.text("onlinechat.command.reload.ok")), true);
+        return 1;
+    }
+
+    /**
+     * {@code /onlinechat announce <text>} — broadcasts an announcement to the in-game chat AND to every
+     * web client (where it is rendered as a highlighted system message). Works from console and in game.
+     */
+    private static int announce(CommandContext<CommandSourceStack> ctx) {
+        OnlineChat runtime = OnlineChat.instance();
+        if (runtime == null) return 0;
+        String text = StringArgumentType.getString(ctx, "text").trim();
+        if (text.isEmpty()) {
+            ctx.getSource().sendFailure(prefix().append(Lang.text("onlinechat.command.announce.empty")));
+            return 0;
+        }
+        if (runtime.getBridge() == null) return 0;
+        runtime.getBridge().emitAnnouncement(text);
+        ctx.getSource().sendSuccess(
+                () -> prefix().append(Lang.text("onlinechat.command.announce.ok").withStyle(ChatFormatting.GREEN)), false);
+        return 1;
+    }
+
+    /** {@code /onlinechat webusers} — lists the web accounts with a live socket, and their bindings. */
+    private static int webUsers(CommandContext<CommandSourceStack> ctx) {
+        OnlineChat runtime = OnlineChat.instance();
+        if (runtime == null) return 0;
+        var sessions = runtime.getSessions();
+        Map<String, WebSessionManager.Session> byUser = new LinkedHashMap<>();
+        if (sessions != null) {
+            for (WebSessionManager.Session s : sessions.all()) {
+                if (s.isAuthenticated()) byUser.putIfAbsent(s.username.toLowerCase(Locale.ROOT), s);
+            }
+        }
+        if (byUser.isEmpty()) {
+            ctx.getSource().sendSuccess(() -> prefix().append(Lang.text("onlinechat.command.webusers.none")), false);
+            return 1;
+        }
+        var ordered = byUser.values().stream()
+                .sorted(Comparator.comparing(s -> s.username.toLowerCase(Locale.ROOT)))
+                .toList();
+        MutableComponent out = prefix().append(Lang.text("onlinechat.command.webusers.header", ordered.size()));
+        for (WebSessionManager.Session s : ordered) {
+            out.append(Component.literal("\n  - ").withStyle(ChatFormatting.GRAY))
+                    .append(Component.literal(s.username).withStyle(ChatFormatting.YELLOW));
+            String mc = runtime.getAccounts().byUsername(s.username)
+                    .map(Account::getBoundPlayerName).orElse(null);
+            if (mc != null) out.append(Lang.text("onlinechat.command.webusers.bound", mc).withStyle(ChatFormatting.AQUA));
+        }
+        ctx.getSource().sendSuccess(() -> out, false);
         return 1;
     }
 

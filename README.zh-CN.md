@@ -10,6 +10,8 @@
 * 🧑‍🤝‍🧑 双向桥接：游戏内聊天显示到网页，网页聊天显示到游戏内。
 * 🎨 区分前缀：网页上显示绿色 `[In Game]`，游戏内显示橙色 `[Web Chat]`。
 * 📢 可选地桥接非玩家消息（加入、退出、死亡、进度）。
+* 🔍 网页端支持**全文搜索聊天归档**，并带 @提及 自动补全与高亮。
+* 📣 `/onlinechat announce` 将管理员公告同时广播到游戏内与网页端。
 * ⚙️ 拆分的配置文件（`onlinechat-common.toml` + `onlinechat-server.toml`）。
 * 🛡️ 可选的 **进服两步验证（2FA）**：开启的玩家进服后被冻结，直到在已登录其绑定网页账号的浏览器中确认。
 * 🌐 所有游戏内文本在 **服务端** 翻译（`language = "en_us" | "zh_cn"`）—— 原版客户端也能看到中文。
@@ -46,7 +48,7 @@
    ```powershell
    .\gradlew.bat build
    ```
-   jar 会输出到 `build/libs/onlinechat-1.21.1-neoforge-0.0.1-alpha.jar`。
+   jar 会输出到 `build/libs/onlinechat-1.21.1-neoforge-0.0.2-alpha.jar`。
 3. **安装** 到你的 `mods/` 文件夹（服务端和/或客户端 —— Web 服务器只在逻辑服务端一侧启动）。
 4. **启动 Minecraft**（专用服务器，或开放到局域网的单人世界 —— 两者皆可）。
    Web 服务器默认监听 `https://0.0.0.0:8443/`。
@@ -86,6 +88,20 @@
 
 ---
 
+## v0.0.2 —— 修复 0.0.1 的服务端启动崩溃
+
+`0.0.1-alpha` 在 **抽象类** `PlayerInteractEvent` 上注册了监听器，导致 NeoForge（21.1.233+）在
+`ServerStarting` 阶段中止并报错：
+
+> `Cannot register listeners for abstract class net.neoforged.neoforge.event.entity.player.PlayerInteractEvent`
+
+`0.0.2-alpha` 改为注册四个具体的交互子类（`RightClickBlock` / `RightClickItem` / `EntityInteract` /
+`LeftClickBlock`），2FA 冻结依然能拦截所有交互，但不会再让服务器崩溃。如果你遇到该报错，把 jar 换成
+`onlinechat-1.21.1-neoforge-0.0.2-alpha.jar` 即可，无需迁移任何配置或数据。本版本还新增了归档搜索、
+公告以及上面列出的网页聊天体验改进。
+
+---
+
 ## 功能清单
 
 | 功能 | 状态 |
@@ -101,13 +117,18 @@
 | 网页上为游戏发送者显示绿色 `[In Game]` 前缀 | ✅ |
 | 可配置的非玩家消息桥接（加入/退出/死亡/进度） | ✅ |
 | 拆分配置（`common` + `server` TOML 文件） | ✅ |
-| 独立的登录 / 账号 / 聊天页面 | ✅ |
+| 独立登录 / 账号 / 聊天页面 | ✅ |
 | 账号页：绑定、修改密码、注销账号（自动解绑） | ✅ |
+| 账号页：注册时间 / 最近登录信息，UUID 一键复制 | ✅ |
 | 可选的玩家级 **进服 2FA**（浏览器确认，超时踢出） | ✅ |
 | 管理员命令 `/onlinechat account setpassword\|delete` | ✅ |
+| `/onlinechat announce <文本>` —— 公告同时发送到游戏与网页 | ✅ |
+| `/onlinechat webusers` —— 查看当前在线的网页用户 | ✅ |
 | 双语 UI + **服务端** 游戏内文本翻译（English & 简体中文） | ✅ |
 | 网页前端释放到 `config/onlinechat/web/` 供自定义 | ✅ |
 | WebSocket 连接时重放聊天历史 + 分页归档 | ✅ |
+| 聊天归档全文搜索（`GET /api/search`）+ 聊天页搜索面板 | ✅ |
+| 网页聊天体验：日期分隔、消息分组、链接可点击、@提及高亮与自动补全、复制按钮、草稿恢复、标题未读角标、可选提示音、密码可见性切换 | ✅ |
 | 按 IP 的登录限流 | ✅ |
 | CORS 白名单 | ✅ |
 | 零外部运行时依赖（Netty 与 Gson 来自 Minecraft） | ✅ |
@@ -117,7 +138,7 @@
 ## 环境要求
 
 * Minecraft **1.21.1**
-* NeoForge **21.1.250** 或更新
+* NeoForge **21.1.233** 或更新
 * Java **21**
 * 一份 TLS 证书（自签名证书适用于局域网测试，公开暴露请用 Let's Encrypt）
 

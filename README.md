@@ -10,6 +10,8 @@ clickable **[Yes] / [No]** confirmation, and then chat with players in real time
 * 🧑‍🤝‍🧑 Two-way bridge: in-game chat appears on the web, web chat appears in-game.
 * 🎨 Distinct prefixes: green `[In Game]` on the web, orange `[Web Chat]` in-game.
 * 📢 Optional bridging of non-player messages (join, quit, death, advancement).
+* 🔍 Full-archive chat **search** from the web UI, with @-mention autocomplete and highlighting.
+* 📣 `/onlinechat announce` broadcasts an operator announcement to game *and* web at once.
 * ⚙️ Split configuration files (`onlinechat-common.toml` + `onlinechat-server.toml`).
 * 🛡️ Optional **2FA on join**: a player with it enabled is frozen until they confirm from a browser that is signed in to their bound web account.
 * 🌐 Every in-game line is translated **server-side** (`language = "en_us" | "zh_cn"`) — vanilla clients see it.
@@ -47,7 +49,7 @@ clickable **[Yes] / [No]** confirmation, and then chat with players in real time
    ```powershell
    .\gradlew.bat build
    ```
-   The jar is written to `build/libs/onlinechat-1.21.1-neoforge-0.0.1-alpha.jar`.
+   The jar is written to `build/libs/onlinechat-1.21.1-neoforge-0.0.2-alpha.jar`.
 3. **Install** it into your `mods/` folder (server and/or client — the web server only
    starts on the logical server side).
 4. **Start Minecraft** (dedicated server or single-player world opened to LAN — both work).
@@ -88,6 +90,21 @@ The prefix text, colour and the whole line format are configurable — see
 
 ---
 
+## v0.0.2 — fixes the server-start crash in 0.0.1
+
+`0.0.1-alpha` registered a listener on the **abstract** `PlayerInteractEvent`, which makes NeoForge
+(21.1.233+) abort during `ServerStarting` with:
+
+> `Cannot register listeners for abstract class net.neoforged.neoforge.event.entity.player.PlayerInteractEvent`
+
+`0.0.2-alpha` registers the four concrete interaction subclasses instead
+(`RightClickBlock` / `RightClickItem` / `EntityInteract` / `LeftClickBlock`), so the 2FA freeze still
+blocks every interaction without crashing the server. If you see that error, replace the jar with
+`onlinechat-1.21.1-neoforge-0.0.2-alpha.jar` — no config or data migration is needed. This release also
+adds archive search, announcements and the web-chat UX improvements listed above.
+
+---
+
 ## Feature checklist
 
 | Feature | Status |
@@ -105,11 +122,16 @@ The prefix text, colour and the whole line format are configurable — see
 | Split configuration (`common` + `server` TOML files) | ✅ |
 | Separate login / account / chat pages | ✅ |
 | Account page: bind, change password, delete account (auto-unbinds) | ✅ |
+| Account page: joined / last-sign-in info, one-click UUID copy | ✅ |
 | Optional per-player **2FA on join** (browser confirmation, timeout kick) | ✅ |
 | Operator commands `/onlinechat account setpassword\|delete` | ✅ |
+| `/onlinechat announce <text>` — announcement to game + web | ✅ |
+| `/onlinechat webusers` — list web users with a live session | ✅ |
 | Bilingual UI + **server-side** in-game translation (English & 简体中文) | ✅ |
 | Web front-end extracted to `config/onlinechat/web/` for customisation | ✅ |
 | Chat history replay on WebSocket connect + paged archive | ✅ |
+| Full-archive chat search (`GET /api/search`) + search overlay in the chat page | ✅ |
+| Web chat UX: date separators, message grouping, clickable links, @mention highlight & autocomplete, copy button, draft restore, unread title badge, optional sound, password visibility toggles | ✅ |
 | Login rate limiting per IP | ✅ |
 | CORS allow-list | ✅ |
 | Zero external runtime dependencies (Netty & Gson come from Minecraft) | ✅ |
@@ -119,7 +141,7 @@ The prefix text, colour and the whole line format are configurable — see
 ## Requirements
 
 * Minecraft **1.21.1**
-* NeoForge **21.1.250** or newer
+* NeoForge **21.1.233** or newer
 * Java **21**
 * A TLS certificate (self-signed is fine for LAN testing, Let's Encrypt for public exposure)
 

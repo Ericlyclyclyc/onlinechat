@@ -18,9 +18,9 @@
 | 被盗 / 被破解的 Minecraft 账号进服 | 以合法玩家身份游戏和聊天 | 可选的 **进服 2FA**（`[twoFactor]`，玩家自行选择开启）。玩家进服时被冻结 —— 移动/交互距离属性归零，交互/攻击/物品/丢弃/聊天/命令事件被取消 —— 并收到链接 `publicUrl/2fa/auth/<token>`。Token 为 32 字节 `SecureRandom`（base64url）、一次性、与进服 UUID 绑定，并在 `timeoutSeconds` 后过期。确认页仅在浏览器 `oc_token` cookie 属于 **绑定到这个玩家** 的账号时才放行；其它账号、显式点「不是我」、或超时均会踢出玩家。Token 从不写入磁盘或日志。 |
 | 聊天注入 | 向游戏发送带 `§` 格式或类似命令的文本 | 网页侧文本在广播前会把 `§` 替换为 `&`、剥离换行并限制长度。网页消息通过 `broadcastSystemMessage` 广播，它 **不会** 触发 `ServerChatEvent`，因此命令前缀（`/…`）永远不会被执行。 |
 | 经网页 UI 的存储型 XSS | 利用精心构造的玩家名 / 消息在其他用户浏览器中运行脚本 | 每个作者名与消息体在渲染前都会在客户端做 HTML 转义。所提供页面还携带严格的 `Content-Security-Policy`（`script-src 'self'`，无内联脚本），外加 `X-Content-Type-Options: nosniff`、`X-Frame-Options: DENY`、`Referrer-Policy: no-referrer`，以及在 TLS 上的 HSTS。 |
-| 拒绝服务 | 耗尽服务器资源 | 按 IP **及** 全局的 WebSocket 连接上限、按 IP 的登录/注册限制、按会话的聊天消息限制、按账号的绑定限制（全部在连接之间共享，并按 IP/账号而非 TCP 连接为键）。HTTP 体上限 1 MiB，WebSocket 帧上限 64 KiB，120 秒空闲超时，聊天历史受环形缓冲区约束。PBKDF2 哈希与账号文件写入被卸载到一个有界工作线程池，因此绝不会阻塞 Netty 事件循环。 |
+| 拒绝服务 | 耗尽服务器资源 | 按 IP **及** 全局的 WebSocket 连接上限、按 IP 的登录/注册限制、按会话的聊天消息限制、按账号的绑定限制（全部在连接之间共享，并按 IP/账号而非 TCP 连接为键）。HTTP 体上限 1 MiB，WebSocket 帧上限 64 KiB，120 秒空闲超时，聊天历史受环形缓冲区约束。归档全文搜索需要认证、按 IP 限流（每分钟 30 次）并分页返回，无法被用作放大攻击向量。PBKDF2 哈希与账号文件写入被卸载到一个有界工作线程池，因此绝不会阻塞 Netty 事件循环。 |
 | 跨源滥用 / CSWSH | 来自恶意网站的随手调用或跨站 WebSocket 劫持 | 单一来源白名单（`cors.allowedOrigins`）同时治理 REST（通过 CORS 头）与 WebSocket 升级（通过握手前的 `Origin` 校验）。`oc_token` 认证 Cookie 为 `HttpOnly`、`SameSite=Lax`，并在 TLS 监听器上带 `Secure`。 |
-| 聊天历史重放 | 泄露私密对话 | 历史只发送给已认证的会话。 |
+| 聊天历史重放 | 泄露私密对话 | 历史与归档搜索只提供给已认证的会话。 |
 
 ---
 

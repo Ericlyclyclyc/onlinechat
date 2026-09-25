@@ -449,10 +449,10 @@ code, pre { font-family: var(--mono); }
     display: flex; flex-direction: column; gap: 6px;
     font-size: 14px; line-height: 1.55;
 }
-.msg { display: flex; gap: 10px; align-items: flex-start; }
+.msg { display: flex; gap: 10px; align-items: flex-start; --avatar-w: 32px; }
 .msg .avatar {
     flex-shrink: 0;
-    width: 32px; height: 32px; border-radius: 10px;
+    width: var(--avatar-w, 32px); height: 32px; border-radius: 10px;
     display: grid; place-items: center;
     color: white; font-weight: 700; font-size: 13px;
     background: linear-gradient(135deg, #4b5076, #2b2f52);
@@ -477,7 +477,7 @@ code, pre { font-family: var(--mono); }
 .msg .meta .ts { color: var(--text-mute); font-size: 11px; margin-left: auto; }
 .msg .bubble {
     display: inline-block;
-    padding: 8px 12px;
+    padding: 8px 30px 8px 12px;
     background: var(--bg-2);
     border: 1px solid var(--stroke);
     border-radius: 12px;
@@ -485,6 +485,7 @@ code, pre { font-family: var(--mono); }
     word-wrap: break-word;
     overflow-wrap: anywhere;
     max-width: 100%;
+    position: relative;
 }
 .msg.mine .bubble {
     background: linear-gradient(135deg, rgba(124, 92, 255, .18), rgba(78, 203, 255, .14));
@@ -496,6 +497,7 @@ code, pre { font-family: var(--mono); }
     display: flex; gap: 8px; padding: 10px 12px;
     border-top: 1px solid var(--stroke);
     background: rgba(15, 18, 41, .6);
+    position: relative;
 }
 .composer .input { flex: 1; }
 
@@ -624,3 +626,204 @@ code, pre { font-family: var(--mono); }
 /* Fade-in for pages */
 .fade-in { animation: fade-in .35s ease-out; }
 @keyframes fade-in { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+
+/* =========================================================================
+   v0.0.2 additions: grouped messages, date separators, mentions, copy button,
+   search overlay, mention autocomplete, password toggles, info grid, ...
+   ========================================================================= */
+
+/* ---------- Message grouping & date separators ---------- */
+.msg-entry { min-width: 0; }
+.day-sep {
+    display: flex; align-items: center; gap: 12px;
+    margin: 12px 0 8px;
+    color: var(--text-mute);
+    font-size: 11px; font-weight: 600;
+    letter-spacing: .6px; text-transform: uppercase;
+    user-select: none;
+}
+.day-sep::before, .day-sep::after {
+    content: ''; flex: 1; height: 1px;
+    background: var(--stroke);
+}
+.day-sep span { flex: none; padding: 2px 10px; border-radius: 999px; background: var(--bg-2); border: 1px solid var(--stroke); }
+
+.msg.compact {
+    margin-top: 0;
+    /* The avatar and meta are hidden, but the flex gap stays — pad the body back by the
+       avatar width + gap so grouped bubbles align with the first message of the run. */
+    padding-left: calc(var(--avatar-w, 32px) + 10px);
+}
+.msg.compact .avatar, .msg.compact .meta { display: none; }
+.msg.compact .bubble { border-top-left-radius: 6px; border-top-right-radius: 12px; }
+.msg-entry + .msg-entry { margin-top: 2px; }
+
+/* ---------- Clickable links in chat ---------- */
+.autolink { color: var(--brand-2); text-decoration: underline; text-underline-offset: 2px; word-break: break-all; }
+.autolink:hover { color: var(--brand); }
+
+/* ---------- @mention highlight ---------- */
+.msg .bubble.mention-hit {
+    background: rgba(255, 181, 71, .10);
+    border-color: rgba(255, 181, 71, .5);
+    box-shadow: inset 3px 0 0 rgba(255, 181, 71, .65);
+}
+
+/* ---------- Per-message copy button ---------- */
+.copy-btn {
+    position: absolute; top: 5px; right: 5px;
+    width: 22px; height: 22px;
+    display: grid; place-items: center;
+    background: transparent; border: 0; border-radius: 6px;
+    color: var(--text-mute); cursor: pointer;
+    opacity: 0;
+    transition: opacity .15s, background .15s, color .15s;
+    padding: 0;
+}
+.copy-btn svg { width: 12px; height: 12px; }
+.msg:hover .copy-btn, .copy-btn:focus-visible { opacity: 1; }
+.copy-btn:hover { background: var(--bg-3); color: var(--text); }
+
+/* ---------- Announcements ---------- */
+.msg.from-system.sys-announce .bubble {
+    display: flex; flex-direction: column; align-items: center; gap: 4px;
+    padding: 12px 20px;
+    background: rgba(255, 181, 71, .09);
+    border: 1px solid rgba(255, 181, 71, .38);
+    border-radius: var(--radius);
+    color: var(--text);
+    font-style: normal; font-size: 13px;
+    box-shadow: 0 8px 24px rgba(255, 181, 71, .08);
+}
+.announce-tag { font-weight: 800; color: var(--warn); letter-spacing: .8px; text-transform: uppercase; font-size: 11px; }
+
+/* Flash highlight when jumping to a message from search */
+.msg-entry.flash .bubble { animation: msg-flash 1.8s ease-out; }
+@keyframes msg-flash {
+    0% { background: rgba(78, 203, 255, .3); border-color: var(--brand-2); }
+    100% { }
+}
+
+/* ---------- Header icon button (search) ---------- */
+.icon-btn {
+    display: grid; place-items: center;
+    width: 30px; height: 30px; padding: 0;
+    border-radius: 8px;
+    background: transparent; border: 1px solid transparent;
+    color: var(--text-dim); cursor: pointer;
+    transition: color .15s, background .15s, border-color .15s;
+}
+.icon-btn svg { width: 15px; height: 15px; }
+.icon-btn:hover { color: var(--text); background: var(--bg-2); border-color: var(--stroke-strong); }
+.icon-btn.mini { width: 24px; height: 24px; border-radius: 6px; }
+.icon-btn.mini svg { width: 12px; height: 12px; }
+
+/* ---------- Search overlay ---------- */
+.search-layer {
+    position: absolute; inset: 0; z-index: 10;
+    display: flex; flex-direction: column;
+    background: rgba(13, 15, 34, .97);
+    border-radius: 0 0 var(--radius-lg) var(--radius-lg);
+}
+.search-bar { display: flex; gap: 8px; padding: 12px 14px; border-bottom: 1px solid var(--stroke); }
+.search-bar .input { flex: 1; }
+.search-hint { margin: 0; padding: 10px 16px 0; color: var(--text-mute); }
+.search-results {
+    flex: 1; min-height: 0; overflow-y: auto;
+    padding: 10px 16px;
+    display: flex; flex-direction: column; gap: 4px;
+}
+.search-status { padding: 8px 16px 2px; font-size: 12px; text-align: center; color: var(--text-mute); }
+.search-status.ok { color: var(--ok); }
+.search-status.err { color: var(--err); }
+.search-more { margin: 10px 16px 16px; }
+
+/* ---------- @-mention autocomplete ---------- */
+.mention-box {
+    position: absolute; bottom: calc(100% + 8px); left: 12px; z-index: 30;
+    min-width: 230px; max-width: min(320px, calc(100% - 24px));
+    max-height: 264px; overflow-y: auto;
+    background: rgba(23, 26, 58, .98);
+    border: 1px solid var(--stroke-strong);
+    border-radius: var(--radius-sm);
+    box-shadow: var(--shadow-2);
+    padding: 4px;
+}
+.mention-item {
+    display: flex; align-items: center; gap: 8px;
+    padding: 7px 9px; border-radius: 6px;
+    font-size: 13px; color: var(--text); cursor: pointer;
+}
+.mention-item:hover, .mention-item.active { background: var(--bg-3); }
+.mention-item .avatar.mini {
+    width: 20px; height: 20px; border-radius: 6px;
+    background: linear-gradient(135deg, #4b5076, #2b2f52);
+    display: grid; place-items: center;
+    color: white; font-weight: 700; font-size: 10px; flex: none;
+}
+.mention-tag {
+    margin-left: auto; flex: none;
+    font-size: 10px; color: var(--text-mute);
+    border: 1px solid var(--stroke); border-radius: 999px; padding: 1px 7px;
+}
+.mention-tag.web { color: var(--warn); border-color: rgba(255, 181, 71, .35); }
+.mention-tag.player { color: var(--ok); border-color: rgba(61, 220, 151, .35); }
+
+/* ---------- Password visibility toggle ---------- */
+.input-wrap { position: relative; }
+.input-wrap .input { padding-right: 42px; }
+.pw-toggle {
+    position: absolute; right: 6px; top: 50%;
+    transform: translateY(-50%);
+    display: grid; place-items: center;
+    width: 30px; height: 30px; padding: 0;
+    background: transparent; border: 0; border-radius: 8px;
+    color: var(--text-mute); cursor: pointer;
+    transition: color .15s, background .15s;
+}
+.pw-toggle svg { width: 16px; height: 16px; }
+.pw-toggle .icon-off { display: none; }
+.pw-toggle.on .icon-on { display: none; }
+.pw-toggle.on .icon-off { display: block; }
+.pw-toggle:hover { color: var(--text); background: var(--bg-3); }
+
+/* ---------- Landing-page info grid ---------- */
+.info-grid {
+    display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px;
+    text-align: left;
+}
+.info-cell {
+    background: var(--bg-2);
+    border: 1px solid var(--stroke);
+    border-radius: var(--radius-sm);
+    padding: 12px 14px;
+    min-width: 0;
+}
+.info-num { font-size: 20px; font-weight: 700; color: var(--text); line-height: 1.2; }
+.info-num.small { font-size: 13px; font-weight: 600; overflow-wrap: anywhere; }
+.info-label {
+    margin-top: 3px; font-size: 10.5px; font-weight: 600;
+    color: var(--text-mute); text-transform: uppercase; letter-spacing: .5px;
+}
+@media (max-width: 560px) {
+    .info-grid { grid-template-columns: 1fr 1fr; }
+    .info-cell.wide-cell { grid-column: 1 / -1; }
+}
+
+/* ---------- Web users in the sidebar ---------- */
+.player-list li.web-user .avatar { background: linear-gradient(135deg, #ffb547, #d97c14); }
+.web-bound { margin-left: auto; font-size: 11px; color: var(--text-mute); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 42%; }
+.player-list li .status-dot { flex: none; }
+
+/* Slim sound-toggle row in the chat sidebar */
+.switch-row.slim { padding: 8px 12px; cursor: pointer; }
+.switch-row.slim .switch-label { font-size: 12.5px; margin-bottom: 1px; }
+
+/* ---------- Reduced motion ---------- */
+@media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+        animation-duration: .01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: .01ms !important;
+    }
+}

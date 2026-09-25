@@ -2,6 +2,7 @@
 (async function () {
     'use strict';
     await OC.I18N.load();
+    OC.initPasswordToggles();
     const me = await OC.Auth.requireAuth('/login.html');
     if (!me) return;
     OC.renderNav('account', me);
@@ -40,6 +41,15 @@
     let startBoundUuid = null;  // bound UUID when the request started (prevents rebind-to-same false positive)
     let minPasswordLength = 6;
 
+    // ───────────── Account info display ─────────────
+    function renderInfo(acc) {
+        if (!acc) return;
+        document.getElementById('info-username').textContent = acc.username;
+        document.getElementById('acc-joined').textContent = acc.createdAt ? OC.fmtDate(acc.createdAt) : '—';
+        document.getElementById('acc-lastlogin').textContent = acc.lastLoginAt
+            ? `${OC.fmtDate(acc.lastLoginAt)} · ${OC.fmtTime(acc.lastLoginAt)}` : '—';
+    }
+
     // ───────────── Current binding display ─────────────
     function renderCurrent(acc) {
         if (!acc || !acc.bound) {
@@ -57,10 +67,20 @@
             <div class="kv"><span class="k">${OC.escapeHtml(OC.I18N.t('bind.status.boundTo'))}</span>
                 <span class="v">${OC.escapeHtml(acc.mcName || '?')}</span></div>
             <div class="kv"><span class="k">${OC.escapeHtml(OC.I18N.t('bind.status.mcUuid'))}</span>
-                <span class="v" style="font-family:var(--mono);font-size:11px">${OC.escapeHtml(acc.mcUuid || '')}</span></div>
+                <span class="v row" style="gap:6px;align-items:center;justify-content:flex-end;min-width:0">
+                    <span style="font-family:var(--mono);font-size:11px;overflow:hidden;text-overflow:ellipsis">${OC.escapeHtml(acc.mcUuid || '')}</span>
+                    <button class="icon-btn mini" type="button" id="copy-uuid" data-i18n-title="account.copyUuid"
+                            title="Copy UUID" aria-label="Copy UUID">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+                    </button>
+                </span></div>
             <div class="kv"><span class="k">${OC.escapeHtml(OC.I18N.t('bind.status.mcOnline'))}</span>
                 <span class="v">${onlineBadge}</span></div>
         `;
+        const copyBtn = currentBody.querySelector('#copy-uuid');
+        if (copyBtn) copyBtn.addEventListener('click', async () => {
+            if (await OC.copyText(acc.mcUuid || '')) OC.Toast.ok(OC.I18N.t('chat.copied'));
+        });
     }
 
     // ───────────── Two-factor switch ─────────────
@@ -75,6 +95,7 @@
     }
 
     function renderAll(acc) {
+        renderInfo(acc);
         renderCurrent(acc);
         renderTwoFactor(acc);
     }

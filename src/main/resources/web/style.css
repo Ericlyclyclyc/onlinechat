@@ -819,6 +819,13 @@ code, pre { font-family: var(--mono); }
 .switch-row.slim { padding: 8px 12px; cursor: pointer; }
 .switch-row.slim .switch-label { font-size: 12.5px; margin-bottom: 1px; }
 
+/* ---------- Smooth in-app page transitions ----------
+   common.js adds .page-leave when a same-origin link is clicked; the target page
+   fades in via .fade-in, producing a cross-fade between pages. The shared
+   WebSocket (ws-shared.js) means navigation never interrupts the connection. */
+html { transition: opacity .16s ease, transform .16s ease; }
+html.page-leave { opacity: 0; transform: translateY(-6px); }
+
 /* ---------- Reduced motion ---------- */
 @media (prefers-reduced-motion: reduce) {
     *, *::before, *::after {

@@ -280,7 +280,9 @@ public class WebSocketFrameHandler extends SimpleChannelInboundHandler<WebSocket
 
     @Override
     public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) {
-        OnlineChat.LOGGER.warn("[OnlineChat] WebSocket error on {}: {}", ctx.channel().remoteAddress(), cause.toString());
+        // Browsers routinely reset the socket on navigation / tab close (IOException:
+        // connection reset), so this is expected noise, not an error — keep it at DEBUG.
+        OnlineChat.LOGGER.debug("[OnlineChat] WebSocket error on {}: {}", ctx.channel().remoteAddress(), cause.toString());
         ctx.close();
     }
 }

@@ -39,6 +39,9 @@ run/
 repo/
 !**/src/**/repo/
 
+### Local release jars (kept on this machine for distribution, never committed) ###
+/release/
+
 ### OnlineChat secrets — NEVER commit these ###
 # TLS private material (cert + private key) loaded from the run/working directory.
 /ssl/

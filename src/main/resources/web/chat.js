@@ -322,108 +322,72 @@
             : state === 'closed' ? 'chat.serverClosed' : 'chat.connecting');
     }
 
-    // ───────────── WebSocket ─────────────
-    let ws = null;
-    let reconnectDelay = 1000;
-    let historyLoaded = false;
-    let forceLoggedOut = false;   // set when the server kicks us (account signed in elsewhere)
-    let serverShutdown = false;   // set when the server tells us it is going down (do not reconnect)
+    // ───────────── WebSocket (shared across pages via OC.Ws) ─────────────
+    // The socket lives in a SharedWorker (or a direct fallback socket) owned by OC.Ws, so
+    // navigating between chat.html and account.html keeps the same connection — no
+    // disconnect/reconnect churn. All server frames arrive through OC.Ws.on handlers.
 
-    function connect() {
-        setConn('connecting');
-        const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
-        ws = new WebSocket(`${proto}//${location.host}/ws`);
+    OC.Ws.on('ws_status', (msg) => setConn(msg.state));
 
-        ws.addEventListener('open', () => {
-            reconnectDelay = 1000;
-        });
-        ws.addEventListener('message', (ev) => {
-            let msg;
-            try { msg = JSON.parse(ev.data); } catch (_) { return; }
-            switch (msg.type) {
-                case 'ready': break;
-                case 'auth_ok':
-                    setConn('ok');
-                    if (msg.username) { me.username = msg.username; me.bound = msg.bound; me.mcName = msg.mcName; me.mcUuid = msg.mcUuid; renderAccount(me); }
-                    break;
-                case 'auth_error':
-                    setConn('err');
-                    OC.Toast.err(msg.error || OC.I18N.t('error.unauthorized'));
-                    break;
-                case 'history':
-                    if (!historyLoaded) {
-                        messagesEl.innerHTML = '';
-                        lastGroup = null;
-                        const list = msg.messages || [];
-                        const frag = document.createDocumentFragment();
-                        for (const m of list) {
-                            const divider = !lastGroup || dayOf(m.ts) !== lastGroup.day ? OC.fmtDate(m.ts) : null;
-                            const grouped = shouldGroup(lastGroup, m);
-                            frag.appendChild(buildMessageNode(m, { divider, grouped }));
-                            lastGroup = { author: m.author, type: m.type, ts: m.ts, day: dayOf(m.ts) };
-                        }
-                        messagesEl.appendChild(frag);
-                        historyLoaded = true;
-                        hasMore = !!msg.hasMore;
-                        oldestLoadedSeq = (list.length && list[0].id != null) ? list[0].id : null;
-                        scrollToBottom(false);
-                        updateScrollBtn();
-                        maybeAutoFill().then(() => { scrollToBottom(false); updateScrollBtn(); });
-                    }
-                    break;
-                case 'chat':
-                case 'web':
-                case 'system':
-                    appendMessage(msg);
-                    break;
-                case 'pong': break;
-                case 'force_logout':
-                    // This account signed in on another device (or its password changed / it was deleted);
-                    // the server superseded our token. Pass the reason on so the login page can explain.
-                    forceLoggedOut = true;
-                    setConn('err');
-                    OC.Toast.warn(OC.I18N.t('chat.forceLogout'), 6500);
-                    try { ws.close(); } catch (_) {}
-                    setTimeout(() => location.replace('/login.html?reason=' + encodeURIComponent(msg.reason || 'kicked')), 1500);
-                    break;
-                case 'server_shutdown':
-                    // The Minecraft server is stopping: show a blocking notice and stop reconnecting.
-                    serverShutdown = true;
-                    setConn('closed');
-                    try { ws.close(); } catch (_) {}
-                    OC.Modal.alert({
-                        tone: 'warn',
-                        icon: OC.Modal.POWER_ICON,
-                        title: OC.I18N.t('shutdown.title'),
-                        message: OC.I18N.t('shutdown.body'),
-                        buttonText: OC.I18N.t('shutdown.ok'),
-                    });
-                    break;
-                case 'error':
-                    OC.Toast.err(msg.error || OC.I18N.t('error.generic'));
-                    break;
-            }
-        });
-        ws.addEventListener('close', () => {
-            if (forceLoggedOut) return;   // kicked: we are navigating to login, do not reconnect
-            if (serverShutdown) return;   // server is down: hold the "server closed" state, do not reconnect
-            setConn('err');
-            historyLoaded = false;
-            loadingMore = false;
-            loadMoreEl.classList.remove('visible');
-            setTimeout(connect, reconnectDelay);
-            reconnectDelay = Math.min(reconnectDelay * 2, 15000);
-        });
-        ws.addEventListener('error', () => setConn('err'));
-    }
-    connect();
+    OC.Ws.on('auth_ok', (msg) => {
+        if (msg.username) { me.username = msg.username; me.bound = msg.bound; me.mcName = msg.mcName; me.mcUuid = msg.mcUuid; renderAccount(me); }
+    });
 
-    // Keepalive ping every 50s so proxies do not drop the socket.
-    setInterval(() => {
-        if (ws && ws.readyState === WebSocket.OPEN) {
-            try { ws.send(JSON.stringify({ type: 'ping' })); } catch (_) {}
+    OC.Ws.on('auth_error', (msg) => {
+        OC.Toast.err(msg.error || OC.I18N.t('error.unauthorized'));
+    });
+
+    // The worker replays its cached snapshot to late-attaching pages and streams a fresh
+    // page after every (re)authentication — re-render the list in both cases.
+    OC.Ws.on('history', (msg) => {
+        messagesEl.innerHTML = '';
+        lastGroup = null;
+        const list = msg.messages || [];
+        const frag = document.createDocumentFragment();
+        for (const m of list) {
+            const divider = !lastGroup || dayOf(m.ts) !== lastGroup.day ? OC.fmtDate(m.ts) : null;
+            const grouped = shouldGroup(lastGroup, m);
+            frag.appendChild(buildMessageNode(m, { divider, grouped }));
+            lastGroup = { author: m.author, type: m.type, ts: m.ts, day: dayOf(m.ts) };
         }
-    }, 50000);
+        messagesEl.appendChild(frag);
+        hasMore = !!msg.hasMore;
+        oldestLoadedSeq = (list.length && list[0].id != null) ? list[0].id : null;
+        loadingMore = false;
+        loadMoreEl.classList.remove('visible');
+        scrollToBottom(false);
+        updateScrollBtn();
+        maybeAutoFill().then(() => { scrollToBottom(false); updateScrollBtn(); });
+    });
+
+    OC.Ws.on('chat', (msg) => appendMessage(msg));
+    OC.Ws.on('web', (msg) => appendMessage(msg));
+    OC.Ws.on('system', (msg) => appendMessage(msg));
+
+    OC.Ws.on('force_logout', (msg) => {
+        // This account signed in on another device (or its password changed / it was deleted);
+        // the server superseded our token. Pass the reason on so the login page can explain.
+        OC.Ws.stop();
+        setConn('err');
+        OC.Toast.warn(OC.I18N.t('chat.forceLogout'), 6500);
+        setTimeout(() => location.replace('/login.html?reason=' + encodeURIComponent(msg.reason || 'kicked')), 1500);
+    });
+
+    OC.Ws.on('server_shutdown', () => {
+        // The Minecraft server is stopping: show a blocking notice; OC.Ws stops reconnecting.
+        setConn('closed');
+        OC.Modal.alert({
+            tone: 'warn',
+            icon: OC.Modal.POWER_ICON,
+            title: OC.I18N.t('shutdown.title'),
+            message: OC.I18N.t('shutdown.body'),
+            buttonText: OC.I18N.t('shutdown.ok'),
+        });
+    });
+
+    OC.Ws.on('error', (msg) => {
+        OC.Toast.err(msg.error || OC.I18N.t('error.generic'));
+    });
 
     // ───────────── Composer ─────────────
     // Draft persistence: remember the un-sent text across reloads.
@@ -441,11 +405,10 @@
         e.preventDefault();
         const text = input.value.trim();
         if (!text) return;
-        if (!ws || ws.readyState !== WebSocket.OPEN) {
+        if (!OC.Ws.send({ type: 'chat', text })) {
             OC.Toast.warn(OC.I18N.t('chat.disconnected'));
             return;
         }
-        ws.send(JSON.stringify({ type: 'chat', text }));
         // Echo locally so the sender sees their message immediately (and jump to the bottom).
         appendMessage({
             type: 'web', ts: Date.now(),

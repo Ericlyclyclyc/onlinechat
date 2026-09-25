@@ -330,7 +330,8 @@
 | `/2fa/auth/<token>` | `web/2fa.html` | 游戏内聊天链接指向的两步验证确认页。`2fa.js` 从路径中读取 token。 |
 | `/chat.html` | `web/chat.html` | 实时聊天桥接。 |
 | `/style.css` | `web/style.css` | 共享样式表。 |
-| `/common.js` | `web/common.js` | 共享库：API 辅助、i18n、toast、modal、导航、认证。 |
+| `/common.js` | `web/common.js` | 共享库：API 辅助、i18n、toast、modal、导航、认证、共享 WebSocket 传输（`OC.Ws`）与平滑换页过渡。 |
+| `/ws-shared.js` | `web/ws-shared.js` | SharedWorker，承载**每个源唯一的 WebSocket**。各页面通过 `MessagePort` 挂接，站内切换页面时连接不会断开或重建。浏览器不支持 SharedWorker 时客户端回退到每页独立 WebSocket。 |
 | `/index.js` `/login.js` `/account.js` `/2fa.js` `/chat.js` | `web/*.js` | 各页面逻辑。 |
 | `/locales/en.json` `/locales/zh-CN.json` | `web/locales/*.json` | UI 翻译。 |
 

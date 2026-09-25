@@ -191,9 +191,165 @@
             try { await API.post('/api/logout'); } catch (_) {}
             this.token = null;
             this.user = null;
+            Ws.stop();   // the server closed our sockets anyway; stop the reconnect loop
             location.href = '/login.html';
         },
     };
+
+    // ───────────────────────────── Shared WebSocket transport ─────────────────────────────
+    // One authenticated WebSocket per origin lives inside a SharedWorker (ws-shared.js), so
+    // in-app navigation (chat.html ⇄ account.html) never drops or re-creates the socket.
+    // Falls back to a per-page WebSocket where SharedWorker is unavailable.
+    const Ws = {
+        mode: 'none',            // 'shared' | 'direct'
+        worker: null,
+        port: null,
+        socket: null,
+        handlers: new Map(),     // type -> Set<fn>
+        status: 'connecting',
+        _reconnectDelay: 1000,
+        _reconnectTimer: null,
+        _stopped: false,
+        _pingTimer: null,
+
+        _init() {
+            if (this.mode !== 'none') return;
+            if (typeof SharedWorker === 'function') {
+                try {
+                    this.worker = new SharedWorker('/ws-shared.js', 'onlinechat-ws');
+                    this.port = this.worker.port;
+                    this.port.addEventListener('message', (ev) => this._dispatch(ev.data));
+                    this.port.start();
+                    this.mode = 'shared';
+                    this.worker.addEventListener('error', () => this._fallbackDirect());
+                    return;
+                } catch (_) { /* fall through to a direct socket */ }
+            }
+            this._startDirect();
+        },
+
+        _fallbackDirect() {
+            if (this.port) { try { this.port.close(); } catch (_) {} }
+            this.worker = null;
+            this.port = null;
+            this._startDirect();
+        },
+
+        _startDirect() {
+            this.mode = 'direct';
+            this._connectDirect();
+            if (!this._pingTimer) {
+                this._pingTimer = setInterval(() => {
+                    if (this.socket && this.socket.readyState === WebSocket.OPEN) {
+                        try { this.socket.send(JSON.stringify({ type: 'ping' })); } catch (_) {}
+                    }
+                }, 50000);
+            }
+        },
+
+        _connectDirect() {
+            const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
+            const ws = new WebSocket(proto + '//' + location.host + '/ws');
+            this.socket = ws;
+            this._emit('ws_status', { type: 'ws_status', state: 'connecting' });
+            ws.addEventListener('open', () => { this._reconnectDelay = 1000; });
+            ws.addEventListener('message', (ev) => {
+                let m;
+                try { m = JSON.parse(ev.data); } catch (_) { return; }
+                if (m && m.type === 'auth_ok') this._emit('ws_status', { type: 'ws_status', state: 'ok' });
+                this._dispatch(m);
+            });
+            ws.addEventListener('close', () => {
+                this._emit('ws_status', { type: 'ws_status', state: this._stopped ? 'closed' : 'err' });
+                if (!this._stopped) {
+                    this._reconnectTimer = setTimeout(() => {
+                        this._reconnectTimer = null;
+                        if (this.mode === 'direct') this._connectDirect();
+                    }, this._reconnectDelay);
+                    this._reconnectDelay = Math.min(this._reconnectDelay * 2, 15000);
+                }
+            });
+            ws.addEventListener('error', () => { /* a close event follows */ });
+        },
+
+        _dispatch(msg) {
+            if (!msg) return;
+            if (msg.type === 'ws_status') this.status = msg.state;
+            this._emit(msg.type, msg);
+        },
+
+        _emit(type, msg) {
+            const set = this.handlers.get(type);
+            if (set) for (const fn of [...set]) { try { fn(msg); } catch (_) {} }
+        },
+
+        /** Registers a handler for a server frame type (or 'ws_status'). Returns an unsubscribe fn. */
+        on(type, fn) {
+            this._init();
+            if (!this.handlers.has(type)) this.handlers.set(type, new Set());
+            this.handlers.get(type).add(fn);
+            return () => this.off(type, fn);
+        },
+        off(type, fn) {
+            const set = this.handlers.get(type);
+            if (set) set.delete(fn);
+        },
+
+        /** Forwards a WebSocket frame; false when the transport is not connected right now. */
+        send(payload) {
+            this._init();
+            if (this.mode === 'shared' && this.port) {
+                try { this.port.postMessage({ type: 'send', payload }); return true; } catch (_) { return false; }
+            }
+            if (this.mode === 'direct' && this.socket && this.socket.readyState === WebSocket.OPEN) {
+                try { this.socket.send(JSON.stringify(payload)); return true; } catch (_) { return false; }
+            }
+            return false;
+        },
+
+        /** After a successful login the cookie changed — tell the shared worker to reconnect. */
+        resume() {
+            this._init();
+            this._stopped = false;
+            this._reconnectDelay = 1000;
+            if (this.port) {
+                try { this.port.postMessage({ type: 'resume' }); } catch (_) {}
+            } else if (this.mode === 'direct' && (!this.socket || this.socket.readyState === WebSocket.CLOSED)) {
+                this._connectDirect();
+            }
+        },
+
+        /** Logout / force_logout: close the socket and stop any reconnect loop. */
+        stop() {
+            this._stopped = true;
+            if (this._reconnectTimer) { clearTimeout(this._reconnectTimer); this._reconnectTimer = null; }
+            if (this.port) { try { this.port.postMessage({ type: 'stop' }); } catch (_) {} }
+            if (this.socket) { try { this.socket.close(); } catch (_) {} }
+        },
+    };
+
+    // ───────────────────────────── Smooth in-app page transitions ─────────────────────────────
+    // Intercept same-origin navigation links: fade the current page out, then navigate — the
+    // target page already fades in, giving a cross-fade between pages. Combined with the shared
+    // WebSocket this makes in-app navigation feel seamless.
+    function smoothNav() {
+        document.addEventListener('click', (e) => {
+            if (e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+            const a = e.target.closest('a[href]');
+            if (!a || a.target === '_blank' || a.hasAttribute('download')) return;
+            const href = a.getAttribute('href');
+            if (!href || href.startsWith('#') || href.startsWith('?')) return;
+            let dest;
+            try { dest = new URL(href, location.href); } catch (_) { return; }
+            if (dest.origin !== location.origin) return;
+            if (dest.pathname === location.pathname && dest.search === location.search) return;
+            e.preventDefault();
+            document.documentElement.classList.add('page-leave');
+            setTimeout(() => { location.assign(dest.href); }, 160);
+        });
+        // Back/forward via bfcache: make sure the page is fully visible again.
+        window.addEventListener('pageshow', () => document.documentElement.classList.remove('page-leave'));
+    }
 
     // ───────────────────────────── Nav ─────────────────────────────
     function renderNav(activePage, user) {
@@ -420,6 +576,14 @@
         API, I18N, Toast, Modal, Auth, renderNav,
         escapeHtml, fmtTime, fmtDate, renderText, copyText, debounce,
         Sound, TitleBadge, initPasswordToggles,
+        Ws, smoothNav,
         setLoading, ensureSpinner, SUPPORTED_LOCALES,
     };
+
+    // Smooth page transitions are opt-out only via the reduced-motion media query in the CSS.
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', smoothNav);
+    } else {
+        smoothNav();
+    }
 })(window);

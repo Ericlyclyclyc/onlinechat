@@ -94,6 +94,9 @@
             const { ok, body } = await OC.API.post('/api/login', { username, password });
             if (ok) {
                 OC.Toast.ok(OC.I18N.t('login.title') + ' — ' + body.username);
+                // Fresh cookie: re-arm the shared WebSocket so the chat page is already
+                // authenticated when it loads.
+                OC.Ws.resume();
                 setTimeout(redirectAfterAuth, 350);
             } else {
                 OC.Toast.err(body.error || OC.I18N.t('login.err.failed'));
@@ -122,6 +125,7 @@
             const { ok, body } = await OC.API.post('/api/register', { username, password });
             if (ok) {
                 OC.Toast.ok(OC.I18N.t('login.ok.registered'));
+                OC.Ws.resume();
                 setTimeout(redirectAfterAuth, 500);
             } else {
                 OC.Toast.err(body.error || OC.I18N.t('login.err.register'));

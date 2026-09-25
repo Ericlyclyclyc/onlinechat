@@ -1004,7 +1004,9 @@ public class HttpApiHandler extends SimpleChannelInboundHandler<FullHttpRequest>
             redirectToHttpsAndClose(ctx);
             return;
         }
-        OnlineChat.LOGGER.warn("[OnlineChat] HTTP handler error on {}: {}", ctx.channel().remoteAddress(), cause.toString());
+        // Anything else is almost always a browser dropping the connection mid-request
+        // (IOException: connection reset) during navigation — expected noise, keep at DEBUG.
+        OnlineChat.LOGGER.debug("[OnlineChat] HTTP handler error on {}: {}", ctx.channel().remoteAddress(), cause.toString());
         if (ctx.channel().isActive()) {
             FullHttpResponse resp = new DefaultFullHttpResponse(HttpVersion.HTTP_1_1, HttpResponseStatus.INTERNAL_SERVER_ERROR,
                     Unpooled.copiedBuffer("{\"ok\":false,\"error\":\"internal\"}", StandardCharsets.UTF_8));

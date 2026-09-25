@@ -48,7 +48,7 @@
    ```powershell
    .\gradlew.bat build
    ```
-   jar 会输出到 `build/libs/onlinechat-1.21.1-neoforge-0.0.2-alpha.jar`。
+   jar 会输出到 `build/libs/onlinechat-1.21.1-neoforge-0.0.3-alpha.jar`。
 3. **安装** 到你的 `mods/` 文件夹（服务端和/或客户端 —— Web 服务器只在逻辑服务端一侧启动）。
 4. **启动 Minecraft**（专用服务器，或开放到局域网的单人世界 —— 两者皆可）。
    Web 服务器默认监听 `https://0.0.0.0:8443/`。
@@ -88,17 +88,17 @@
 
 ---
 
-## v0.0.2 —— 修复 0.0.1 的服务端启动崩溃
+## v0.0.2+ —— 修复 0.0.1 的服务端启动崩溃
 
 `0.0.1-alpha` 在 **抽象类** `PlayerInteractEvent` 上注册了监听器，导致 NeoForge（21.1.233+）在
 `ServerStarting` 阶段中止并报错：
 
 > `Cannot register listeners for abstract class net.neoforged.neoforge.event.entity.player.PlayerInteractEvent`
 
-`0.0.2-alpha` 改为注册四个具体的交互子类（`RightClickBlock` / `RightClickItem` / `EntityInteract` /
-`LeftClickBlock`），2FA 冻结依然能拦截所有交互，但不会再让服务器崩溃。如果你遇到该报错，把 jar 换成
-`onlinechat-1.21.1-neoforge-0.0.2-alpha.jar` 即可，无需迁移任何配置或数据。本版本还新增了归档搜索、
-公告以及上面列出的网页聊天体验改进。
+`0.0.2-alpha` 及更高版本改为注册四个具体的交互子类（`RightClickBlock` / `RightClickItem` /
+`EntityInteract` / `LeftClickBlock`），2FA 冻结依然能拦截所有交互，但不会再让服务器崩溃。如果你遇到
+该报错，把 jar 换成 `onlinechat-1.21.1-neoforge-0.0.3-alpha.jar` 即可，无需迁移任何配置或数据。
+这些版本还新增了归档搜索、公告以及上面列出的网页聊天体验改进。
 
 ---
 
@@ -129,6 +129,7 @@
 | WebSocket 连接时重放聊天历史 + 分页归档 | ✅ |
 | 聊天归档全文搜索（`GET /api/search`）+ 聊天页搜索面板 | ✅ |
 | 网页聊天体验：日期分隔、消息分组、链接可点击、@提及高亮与自动补全、复制按钮、草稿恢复、标题未读角标、可选提示音、密码可见性切换 | ✅ |
+| WebSocket 跨页面共享（SharedWorker）+ 平滑换页过渡 —— 在聊天 ⇄ 账号页面之间切换不会断连，也不会刷屏连接/断开消息 | ✅ |
 | 按 IP 的登录限流 | ✅ |
 | CORS 白名单 | ✅ |
 | 零外部运行时依赖（Netty 与 Gson 来自 Minecraft） | ✅ |

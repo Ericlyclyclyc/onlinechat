@@ -348,7 +348,8 @@ and falls back to the copy bundled in the jar's `/web/` folder. The UI is a **mu
 | `/2fa/auth/<token>` | `web/2fa.html` | Two-factor confirmation page linked from in-game chat. The token is read from the path by `2fa.js`. |
 | `/chat.html` | `web/chat.html` | Live chat bridge. |
 | `/style.css` | `web/style.css` | Shared stylesheet. |
-| `/common.js` | `web/common.js` | Shared library: API helpers, i18n, toast, modal, nav, auth. |
+| `/common.js` | `web/common.js` | Shared library: API helpers, i18n, toast, modal, nav, auth, shared WebSocket transport (`OC.Ws`) and smooth page transitions. |
+| `/ws-shared.js` | `web/ws-shared.js` | SharedWorker hosting the **single WebSocket per origin**. Pages attach to it over `MessagePort`s, so navigating between pages never drops or re-creates the socket. The client falls back to a per-page WebSocket where SharedWorker is unavailable. |
 | `/index.js` `/login.js` `/account.js` `/2fa.js` `/chat.js` | `web/*.js` | Per-page logic. |
 | `/locales/en.json` `/locales/zh-CN.json` | `web/locales/*.json` | UI translations. |
 

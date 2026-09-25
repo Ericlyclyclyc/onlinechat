@@ -29,9 +29,6 @@
     const formDelete = document.getElementById('form-delete');
     const delSubmit = document.getElementById('del-submit');
 
-    let ws = null;
-    let forceLoggedOut = false;   // set when the server kicks us (account signed in elsewhere / deleted)
-    let serverShutdown = false;   // set when the server tells us it is going down (do not reconnect)
     let selfPasswordChange = false; // we rotated our own password: the resulting force_logout is expected
     let pendingUntil = 0;
     let pendingTicker = null;
@@ -108,58 +105,39 @@
     }
     setInterval(refreshMe, 15000);
 
-    // ───────────── WebSocket for live bind events ─────────────
-    function connect() {
-        const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
-        ws = new WebSocket(`${proto}//${location.host}/ws`);
-        ws.addEventListener('message', (ev) => {
-            let msg;
-            try { msg = JSON.parse(ev.data); } catch (_) { return; }
-            switch (msg.type) {
-                case 'bind_pending': onPending(msg); break;
-                case 'bind_ok':      onBindOk(msg); break;
-                case 'bind_denied':  onBindDenied(msg); break;
-                case 'bind_expired': onBindExpired(msg); break;
-                case 'bind_error':   OC.Toast.err(msg.error || OC.I18N.t('bind.err.failed')); break;
-                case 'unbind_ok':    onUnbindOk(); break;
-                case 'auth_ok':      /* cookie auto-auth succeeded */ break;
-                case 'auth_error':   OC.Toast.err(msg.error || OC.I18N.t('error.unauthorized')); break;
-                case 'force_logout':
-                    // Our own password change also produces this frame; the HTTP reply already handed us a
-                    // fresh cookie, so just let the socket reconnect instead of bouncing to the login page.
-                    if (msg.reason === 'password_changed' && selfPasswordChange) {
-                        selfPasswordChange = false;
-                        break;
-                    }
-                    forceLoggedOut = true;
-                    OC.Toast.warn(OC.I18N.t('chat.forceLogout'), 6500);
-                    try { ws.close(); } catch (_) {}
-                    setTimeout(() => location.replace('/login.html?reason=' + encodeURIComponent(msg.reason || 'kicked')), 1500);
-                    break;
-                case 'server_shutdown':
-                    // The Minecraft server is stopping: halt any pending bind timers, notify, stop reconnecting.
-                    serverShutdown = true;
-                    if (pendingTicker) { clearInterval(pendingTicker); pendingTicker = null; }
-                    if (resultPoller) { clearInterval(resultPoller); resultPoller = null; }
-                    try { ws.close(); } catch (_) {}
-                    OC.Modal.alert({
-                        tone: 'warn',
-                        icon: OC.Modal.POWER_ICON,
-                        title: OC.I18N.t('shutdown.title'),
-                        message: OC.I18N.t('shutdown.body'),
-                        buttonText: OC.I18N.t('shutdown.ok'),
-                    });
-                    break;
-            }
+    // ───────────── Shared WebSocket for live bind events ─────────────
+    // The socket is owned by OC.Ws (SharedWorker or direct fallback), so navigating away from
+    // this page and back never drops the connection or re-spams connect/disconnect messages.
+    OC.Ws.on('bind_pending', onPending);
+    OC.Ws.on('bind_ok', onBindOk);
+    OC.Ws.on('bind_denied', onBindDenied);
+    OC.Ws.on('bind_expired', onBindExpired);
+    OC.Ws.on('bind_error', (msg) => OC.Toast.err(msg.error || OC.I18N.t('bind.err.failed')));
+    OC.Ws.on('unbind_ok', onUnbindOk);
+    OC.Ws.on('auth_error', (msg) => OC.Toast.err(msg.error || OC.I18N.t('error.unauthorized')));
+    OC.Ws.on('force_logout', (msg) => {
+        // Our own password change also produces this frame; the HTTP reply already handed us a
+        // fresh cookie and OC.Ws.resume() re-arms the socket, so just ignore it here.
+        if (msg.reason === 'password_changed' && selfPasswordChange) {
+            selfPasswordChange = false;
+            return;
+        }
+        OC.Ws.stop();
+        OC.Toast.warn(OC.I18N.t('chat.forceLogout'), 6500);
+        setTimeout(() => location.replace('/login.html?reason=' + encodeURIComponent(msg.reason || 'kicked')), 1500);
+    });
+    OC.Ws.on('server_shutdown', () => {
+        // The Minecraft server is stopping: halt any pending bind timers, notify; OC.Ws stops reconnecting.
+        if (pendingTicker) { clearInterval(pendingTicker); pendingTicker = null; }
+        if (resultPoller) { clearInterval(resultPoller); resultPoller = null; }
+        OC.Modal.alert({
+            tone: 'warn',
+            icon: OC.Modal.POWER_ICON,
+            title: OC.I18N.t('shutdown.title'),
+            message: OC.I18N.t('shutdown.body'),
+            buttonText: OC.I18N.t('shutdown.ok'),
         });
-        ws.addEventListener('close', () => {
-            if (forceLoggedOut) return;   // kicked: we are navigating to login, do not reconnect
-            if (serverShutdown) return;   // server is down: hold state, do not reconnect
-            // Reconnect after a short delay (page may still be open).
-            setTimeout(() => { if (!ws || ws.readyState === WebSocket.CLOSED) connect(); }, 3000);
-        });
-    }
-    connect();
+    });
 
     function showPending() {
         pendingActive = true;
@@ -255,10 +233,8 @@
 
     cancelBtn.addEventListener('click', () => {
         hidePending();
-        // Best-effort: tell the server to drop the pending code.
-        if (ws && ws.readyState === WebSocket.OPEN) {
-            try { ws.send(JSON.stringify({ type: 'unbind' })); } catch (_) {}
-        }
+        // Best-effort: tell the server to drop the pending code (no-op when the socket is busy).
+        OC.Ws.send({ type: 'unbind' });
     });
 
     unbindBtn.addEventListener('click', async () => {
@@ -330,6 +306,10 @@
             if (ok) {
                 OC.Toast.ok(OC.I18N.t('account.password.ok'));
                 formPassword.reset();
+                // The server bumped lastLoginAt (invalidating the old token) and closed the shared
+                // socket with a force_logout frame; the reply carried a fresh cookie, so re-arm
+                // the transport to reconnect and authenticate with it.
+                OC.Ws.resume();
             } else {
                 selfPasswordChange = false;
                 OC.Toast.err(body.error || OC.I18N.t('account.password.err'));
@@ -352,8 +332,7 @@
         try {
             const { ok, body } = await OC.API.post('/api/account/delete', { password });
             if (ok) {
-                forceLoggedOut = true;   // the server also closes our socket; do not reconnect
-                try { if (ws) ws.close(); } catch (_) {}
+                OC.Ws.stop();   // the server closed our sockets anyway; stop the reconnect loop
                 OC.Toast.ok(OC.I18N.t('account.delete.ok'));
                 setTimeout(() => location.replace('/login.html?reason=account_deleted'), 1200);
             } else {

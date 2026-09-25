@@ -49,7 +49,7 @@ clickable **[Yes] / [No]** confirmation, and then chat with players in real time
    ```powershell
    .\gradlew.bat build
    ```
-   The jar is written to `build/libs/onlinechat-1.21.1-neoforge-0.0.2-alpha.jar`.
+   The jar is written to `build/libs/onlinechat-1.21.1-neoforge-0.0.3-alpha.jar`.
 3. **Install** it into your `mods/` folder (server and/or client — the web server only
    starts on the logical server side).
 4. **Start Minecraft** (dedicated server or single-player world opened to LAN — both work).
@@ -90,18 +90,18 @@ The prefix text, colour and the whole line format are configurable — see
 
 ---
 
-## v0.0.2 — fixes the server-start crash in 0.0.1
+## v0.0.2+ — fixes the server-start crash in 0.0.1
 
 `0.0.1-alpha` registered a listener on the **abstract** `PlayerInteractEvent`, which makes NeoForge
 (21.1.233+) abort during `ServerStarting` with:
 
 > `Cannot register listeners for abstract class net.neoforged.neoforge.event.entity.player.PlayerInteractEvent`
 
-`0.0.2-alpha` registers the four concrete interaction subclasses instead
+`0.0.2-alpha` and newer register the four concrete interaction subclasses instead
 (`RightClickBlock` / `RightClickItem` / `EntityInteract` / `LeftClickBlock`), so the 2FA freeze still
 blocks every interaction without crashing the server. If you see that error, replace the jar with
-`onlinechat-1.21.1-neoforge-0.0.2-alpha.jar` — no config or data migration is needed. This release also
-adds archive search, announcements and the web-chat UX improvements listed above.
+`onlinechat-1.21.1-neoforge-0.0.3-alpha.jar` — no config or data migration is needed. These releases also
+add archive search, announcements and the web-chat UX improvements listed above.
 
 ---
 
@@ -132,6 +132,7 @@ adds archive search, announcements and the web-chat UX improvements listed above
 | Chat history replay on WebSocket connect + paged archive | ✅ |
 | Full-archive chat search (`GET /api/search`) + search overlay in the chat page | ✅ |
 | Web chat UX: date separators, message grouping, clickable links, @mention highlight & autocomplete, copy button, draft restore, unread title badge, optional sound, password visibility toggles | ✅ |
+| WebSocket shared across pages (SharedWorker) + smooth in-app page transitions — navigating Chat ⇄ Account never drops the socket or spams connect/disconnect messages | ✅ |
 | Login rate limiting per IP | ✅ |
 | CORS allow-list | ✅ |
 | Zero external runtime dependencies (Netty & Gson come from Minecraft) | ✅ |

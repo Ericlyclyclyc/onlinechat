@@ -28,7 +28,7 @@ Windows PowerShell、macOS Terminal 与 Linux bash 均受支持。
 输出的 jar 会写入：
 
 ```
-build/libs/onlinechat-1.21.1-neoforge-0.0.2-alpha.jar
+build/libs/onlinechat-1.21.1-neoforge-0.0.3-alpha.jar
 ```
 
 > 文件名遵循 NeoForge 约定 `<modid>-<mcversion>-<loader>-<modversion>.jar`。
@@ -118,7 +118,7 @@ openssl req -x509 -newkey rsa:2048 -nodes -days 365 \
 
 ## 4. 在专用服务器上安装
 
-1. 把 `onlinechat-1.21.1-neoforge-0.0.2-alpha.jar` 放入服务器的 `mods/` 文件夹。
+1. 把 `onlinechat-1.21.1-neoforge-0.0.3-alpha.jar` 放入服务器的 `mods/` 文件夹。
 2. 确保相对于服务器工作目录存在 TLS 材料 —— 默认是 `./ssl/fullchain.pem` 与
    `./ssl/privkey.pem`（或设置 `tls.certDir` 指向它们所在的目录）。
 3. 照常启动服务器（`java -jar ...` 或你的启动脚本）。

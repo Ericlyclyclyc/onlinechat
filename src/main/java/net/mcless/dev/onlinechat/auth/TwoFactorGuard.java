@@ -256,8 +256,23 @@ public class TwoFactorGuard {
                 remainingSeconds(player.getUUID())).withStyle(ChatFormatting.RED)));
     }
 
+    // PlayerInteractEvent is abstract and is never posted itself; NeoForge rejects a listener on it at
+    // registration time ("Cannot register listeners for abstract class"), which crashes ServerStarting.
+    // Register the concrete, server-side cancellable subclasses instead. EntityInteract also catches its
+    // own subclass EntityInteractSpecific; RightClickEmpty/LeftClickEmpty are client-only and never fire here.
     @SubscribeEvent(priority = EventPriority.HIGHEST)
-    public void onInteract(PlayerInteractEvent event) {
+    public void onRightClickBlock(PlayerInteractEvent.RightClickBlock event) { cancelInteract(event); }
+
+    @SubscribeEvent(priority = EventPriority.HIGHEST)
+    public void onRightClickItem(PlayerInteractEvent.RightClickItem event) { cancelInteract(event); }
+
+    @SubscribeEvent(priority = EventPriority.HIGHEST)
+    public void onEntityInteract(PlayerInteractEvent.EntityInteract event) { cancelInteract(event); }
+
+    @SubscribeEvent(priority = EventPriority.HIGHEST)
+    public void onLeftClickBlock(PlayerInteractEvent.LeftClickBlock event) { cancelInteract(event); }
+
+    private void cancelInteract(PlayerInteractEvent event) {
         if (isFrozen(event.getEntity()) && event instanceof ICancellableEvent c) c.setCanceled(true);
     }
 

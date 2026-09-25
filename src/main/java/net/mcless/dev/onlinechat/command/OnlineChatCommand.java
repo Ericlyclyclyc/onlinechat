@@ -17,7 +17,10 @@ import net.minecraft.network.chat.ClickEvent;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.HoverEvent;
 import net.minecraft.network.chat.MutableComponent;
+import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.server.permissions.Permission;
+import net.minecraft.server.permissions.PermissionLevel;
 
 import java.util.Comparator;
 import java.util.LinkedHashMap;
@@ -40,9 +43,14 @@ import java.util.Optional;
  */
 public class OnlineChatCommand {
 
+    // MC 1.21.8 replaced the numeric op level with a permission set; command level 2 ≈ GAMEMASTERS.
+    private static boolean hasOpLevel(CommandSourceStack src) {
+        return src.permissions().hasPermission(new Permission.HasCommandLevel(PermissionLevel.GAMEMASTERS));
+    }
+
     public static void register(CommandDispatcher<CommandSourceStack> dispatcher) {
         dispatcher.register(Commands.literal("onlinechat")
-                .requires(src -> src.hasPermission(0))
+                .requires(src -> true)
                 .then(Commands.literal("bind")
                         .then(Commands.literal("confirm")
                                 .then(Commands.argument("code", StringArgumentType.word())
@@ -53,17 +61,17 @@ public class OnlineChatCommand {
                 .then(Commands.literal("status").executes(OnlineChatCommand::status))
                 .then(Commands.literal("unbind").executes(OnlineChatCommand::unbind))
                 .then(Commands.literal("announce")
-                        .requires(src -> src.hasPermission(2))
+                        .requires(OnlineChatCommand::hasOpLevel)
                         .then(Commands.argument("text", StringArgumentType.greedyString())
                                 .executes(OnlineChatCommand::announce)))
                 .then(Commands.literal("webusers")
-                        .requires(src -> src.hasPermission(2))
+                        .requires(OnlineChatCommand::hasOpLevel)
                         .executes(OnlineChatCommand::webUsers))
                 .then(Commands.literal("reload")
-                        .requires(src -> src.hasPermission(2))
+                        .requires(OnlineChatCommand::hasOpLevel)
                         .executes(OnlineChatCommand::reload))
                 .then(Commands.literal("account")
-                        .requires(src -> src.hasPermission(2))
+                        .requires(OnlineChatCommand::hasOpLevel)
                         .then(Commands.literal("setpassword")
                                 .then(Commands.argument("username", StringArgumentType.word())
                                         .then(Commands.argument("password", StringArgumentType.greedyString())
@@ -84,14 +92,14 @@ public class OnlineChatCommand {
                 .withStyle(style -> style
                         .withColor(ChatFormatting.GREEN)
                         .withBold(true)
-                        .withClickEvent(new ClickEvent(ClickEvent.Action.RUN_COMMAND, "/onlinechat bind confirm " + code))
-                        .withHoverEvent(new HoverEvent(HoverEvent.Action.SHOW_TEXT, Lang.text("onlinechat.command.bind.yes.hover"))));
+                        .withClickEvent(new ClickEvent.RunCommand("/onlinechat bind confirm " + code))
+                        .withHoverEvent(new HoverEvent.ShowText(Lang.text("onlinechat.command.bind.yes.hover"))));
         MutableComponent no = Component.literal(" ").append(Lang.text("onlinechat.command.bind.no")).append(" ")
                 .withStyle(style -> style
                         .withColor(ChatFormatting.RED)
                         .withBold(true)
-                        .withClickEvent(new ClickEvent(ClickEvent.Action.RUN_COMMAND, "/onlinechat bind deny " + code))
-                        .withHoverEvent(new HoverEvent(HoverEvent.Action.SHOW_TEXT, Lang.text("onlinechat.command.bind.no.hover"))));
+                        .withClickEvent(new ClickEvent.RunCommand("/onlinechat bind deny " + code))
+                        .withHoverEvent(new HoverEvent.ShowText(Lang.text("onlinechat.command.bind.no.hover"))));
 
         player.sendSystemMessage(prefix().withStyle(ChatFormatting.BOLD).append(body));
         player.sendSystemMessage(Component.literal("  ").append(yes).append(no));
@@ -107,7 +115,8 @@ public class OnlineChatCommand {
         OnlineChat runtime = OnlineChat.instance();
         if (runtime == null) return 0;
         BindingManager bindings = runtime.getBindings();
-        Optional<BindingManager.PendingBind> opt = bindings.confirm(player.getServer(), player, code);
+        // MC 1.21.8 removed ServerPlayer.getServer(); the level is always a ServerLevel server-side.
+        Optional<BindingManager.PendingBind> opt = bindings.confirm(((ServerLevel) player.level()).getServer(), player, code);
         if (opt.isEmpty()) {
             player.sendSystemMessage(prefix().append(Lang.text("onlinechat.command.bind.expired").withStyle(ChatFormatting.RED)));
             return 0;

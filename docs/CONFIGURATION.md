@@ -153,7 +153,7 @@ file is built from `certDir` + the matching file name (`<certDir>/<certFileName>
 |-----|---------|-------|
 | `certDir` | `./ssl` | Directory holding the PEM files. Relative paths resolve against the Minecraft run directory; absolute paths are used verbatim. This is the simplest knob — point it at your Let's Encrypt `live/<domain>/` folder, for instance. |
 | `certFileName` | `fullchain.pem` | Certificate file inside `certDir` — the leaf certificate **and** any intermediates. Let's Encrypt's `fullchain.pem` is exactly this. |
-| `keyFileName` | `privkey.pem` | Private key file inside `certDir`. PKCS#8 (`BEGIN PRIVATE KEY`) is preferred; PKCS#1 (`BEGIN RSA PRIVATE KEY`) also works with Netty ≥ 4.1.71 (bundled with MC 1.21.1). |
+| `keyFileName` | `privkey.pem` | Private key file inside `certDir`. PKCS#8 (`BEGIN PRIVATE KEY`) is preferred; PKCS#1 (`BEGIN RSA PRIVATE KEY`) also works with Netty ≥ 4.1.71 (bundled with MC 1.21.8). |
 | `certChainPath` | *(blank)* | Optional explicit path override for the certificate. When non-blank it wins over `certDir` + `certFileName`. |
 | `privateKeyPath` | *(blank)* | Optional explicit path override for the private key. When non-blank it wins over `certDir` + `keyFileName`. |
 | `privateKeyPassword` | *(blank)* | Passphrase if the key is encrypted. Leave empty for unencrypted keys. |

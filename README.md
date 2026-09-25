@@ -1,4 +1,4 @@
-# Online Chat — Minecraft ⇄ Web bridge (NeoForge 1.21.1)
+# Online Chat — Minecraft ⇄ Web bridge (NeoForge 1.21.8)
 
 > Languages: **English** | [简体中文](README.zh-CN.md)
 
@@ -49,7 +49,7 @@ clickable **[Yes] / [No]** confirmation, and then chat with players in real time
    ```powershell
    .\gradlew.bat build
    ```
-   The jar is written to `build/libs/onlinechat-1.21.1-neoforge-0.0.3-alpha.jar`.
+   The jar is written to `build/libs/onlinechat-1.21.8-neoforge-0.0.3-alpha.jar`.
 3. **Install** it into your `mods/` folder (server and/or client — the web server only
    starts on the logical server side).
 4. **Start Minecraft** (dedicated server or single-player world opened to LAN — both work).
@@ -92,15 +92,15 @@ The prefix text, colour and the whole line format are configurable — see
 
 ## v0.0.2+ — fixes the server-start crash in 0.0.1
 
-`0.0.1-alpha` registered a listener on the **abstract** `PlayerInteractEvent`, which makes NeoForge
-(21.1.233+) abort during `ServerStarting` with:
+`0.0.1-alpha` registered a listener on the **abstract** `PlayerInteractEvent`, which makes the 1.21.1-era
+NeoForge builds (21.1.x) abort during `ServerStarting` with:
 
 > `Cannot register listeners for abstract class net.neoforged.neoforge.event.entity.player.PlayerInteractEvent`
 
 `0.0.2-alpha` and newer register the four concrete interaction subclasses instead
 (`RightClickBlock` / `RightClickItem` / `EntityInteract` / `LeftClickBlock`), so the 2FA freeze still
 blocks every interaction without crashing the server. If you see that error, replace the jar with
-`onlinechat-1.21.1-neoforge-0.0.3-alpha.jar` — no config or data migration is needed. These releases also
+`onlinechat-1.21.8-neoforge-0.0.3-alpha.jar` — no config or data migration is needed. These releases also
 add archive search, announcements and the web-chat UX improvements listed above.
 
 ---
@@ -141,9 +141,9 @@ add archive search, announcements and the web-chat UX improvements listed above.
 
 ## Requirements
 
-* Minecraft **1.21.1**
-* NeoForge **21.1.233** or newer
-* Java **21**
+* Minecraft **1.21.8**
+* NeoForge **26.1** or newer
+* Java **25**
 * A TLS certificate (self-signed is fine for LAN testing, Let's Encrypt for public exposure)
 
 ---

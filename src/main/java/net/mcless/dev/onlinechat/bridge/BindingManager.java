@@ -76,7 +76,7 @@ public class BindingManager {
         if (account.isBound() && !ServerConfig.ALLOW_REBIND.get()) return Optional.empty();
 
         ServerPlayer player = server.getPlayerList().getPlayers().stream()
-                .filter(p -> p.getGameProfile().getName().equalsIgnoreCase(targetPlayerName))
+                .filter(p -> p.getGameProfile().name().equalsIgnoreCase(targetPlayerName))
                 .findFirst().orElse(null);
         if (player == null) return Optional.empty();
 
@@ -88,7 +88,7 @@ public class BindingManager {
 
         String code = generateCode();
         PendingBind pb = new PendingBind(code, webUsername, player.getUUID(),
-                player.getGameProfile().getName(),
+                player.getGameProfile().name(),
                 System.currentTimeMillis() + ServerConfig.BIND_CODE_TTL_SECONDS.get() * 1000L);
         pending.put(code, pb);
         ChatBindNotifier.sendConfirmationPrompt(player, webUsername, code);

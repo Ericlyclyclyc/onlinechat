@@ -37,17 +37,14 @@ base {
     archivesName = "${mod_id}-${minecraft_version}-neoforge"
 }
 
-// Mojang ships Java 21 to end users in 1.21.1, so mods should target Java 21.
-java.toolchain.languageVersion = JavaLanguageVersion.of(21)
+// MC 1.21.8 ships Java 25 class files, so the toolchain must be 25 to compile against them.
+java.toolchain.languageVersion = JavaLanguageVersion.of(25)
 
 neoForge {
     // Specify the version of NeoForge to use.
     version = project.neo_version
 
-    parchment {
-        mappingsVersion = project.parchment_mappings_version
-        minecraftVersion = project.parchment_minecraft_version
-    }
+    // Parchment mappings are not used on this branch (plain Mojang mappings).
 
     // This line is optional. Access Transformers are automatically detected
     // accessTransformers = project.files('src/main/resources/META-INF/accesstransformer.cfg')
@@ -119,30 +116,15 @@ configurations {
 }
 
 dependencies {
-    // Netty's core modules ARE provided at runtime by Minecraft itself, so they only need to be visible on
-    // the compile classpath; nothing is shaded into the mod jar. Versions match MC 1.21.1's bundled Netty.
-    compileOnly 'io.netty:netty-buffer:4.1.97.Final'
-    compileOnly 'io.netty:netty-common:4.1.97.Final'
-    compileOnly 'io.netty:netty-transport:4.1.97.Final'
-    compileOnly 'io.netty:netty-handler:4.1.97.Final'
-    compileOnly 'io.netty:netty-codec:4.1.97.Final'
-
-    // netty-codec-http (io.netty.handler.codec.http.* and .websocketx.*) is NOT bundled by Minecraft.
-    // compileOnly works in the dev workspace but throws NoClassDefFoundError: HttpServerCodec on a real
-    // server, breaking BOTH the HTTPS and plain-HTTP listeners. Ship it inside the mod jar via JarInJar.
-    // transitive = false: its own dependencies (buffer/codec/common/handler/transport/unix-common) are
-    // already provided by Minecraft at the same 4.1.97.Final, so bundling only this artifact avoids
-    // duplicate Netty classes on the runtime classpath.
-    jarJar('io.netty:netty-codec-http:4.1.97.Final') {
-        transitive = false
-    }
-    // Also keep it on the compile classpath (harmless if jarJar already contributes it there).
-    compileOnly 'io.netty:netty-codec-http:4.1.97.Final'
-    // Dev-only: Gradle run configurations (runServer / runClient) do NOT see jarJar'd artifacts on
-    // MC 1.21.1, so the embedded web server would fail with NoClassDefFoundError: HttpServerCodec
-    // in the dev workspace. additionalRuntimeClasspath is ModDevGradle's configuration for exactly
-    // this case (see docs.neoforged.net "Non-Minecraft Dependencies", 1.21.8 and below).
-    additionalRuntimeClasspath 'io.netty:netty-codec-http:4.1.97.Final'
+    // MC 1.21.8 bundles the complete Netty 4.2.7.Final — including netty-codec-http — so every
+    // module is provided at runtime by Minecraft itself and only needs compileOnly visibility.
+    // Nothing is shaded into the mod jar.
+    compileOnly 'io.netty:netty-buffer:4.2.7.Final'
+    compileOnly 'io.netty:netty-common:4.2.7.Final'
+    compileOnly 'io.netty:netty-transport:4.2.7.Final'
+    compileOnly 'io.netty:netty-handler:4.2.7.Final'
+    compileOnly 'io.netty:netty-codec:4.2.7.Final'
+    compileOnly 'io.netty:netty-codec-http:4.2.7.Final'
 
     // Example optional mod dependency with JEI
     // The JEI API is declared for compile time use, while the full JEI artifact is used at runtime

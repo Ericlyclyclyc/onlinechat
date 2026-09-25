@@ -737,7 +737,7 @@ public class HttpApiHandler extends SimpleChannelInboundHandler<FullHttpRequest>
         if (srv != null) {
             srv.getPlayerList().getPlayers().forEach(p -> {
                 JsonObject po = new JsonObject();
-                po.addProperty("name", p.getGameProfile().getName());
+                po.addProperty("name", p.getGameProfile().name());
                 po.addProperty("uuid", p.getUUID().toString());
                 arr.add(po);
             });

@@ -151,7 +151,7 @@ TLS 材料通过两步定位。第一步，如果 `certChainPath` / `privateKeyP
 |----|--------|------|
 | `certDir` | `./ssl` | 存放 PEM 文件的目录。相对路径以 Minecraft 运行目录为基准解析；绝对路径原样使用。这是最简单的旋钮 —— 例如把它指向你的 Let's Encrypt `live/<domain>/` 文件夹。 |
 | `certFileName` | `fullchain.pem` | `certDir` 内的证书文件 —— 叶子证书 **及** 所有中间证书。Let's Encrypt 的 `fullchain.pem` 正是如此。 |
-| `keyFileName` | `privkey.pem` | `certDir` 内的私钥文件。首选 PKCS#8（`BEGIN PRIVATE KEY`）；PKCS#1（`BEGIN RSA PRIVATE KEY`）在 Netty ≥ 4.1.71（随 MC 1.21.1 捆绑）下也可用。 |
+| `keyFileName` | `privkey.pem` | `certDir` 内的私钥文件。首选 PKCS#8（`BEGIN PRIVATE KEY`）；PKCS#1（`BEGIN RSA PRIVATE KEY`）在 Netty ≥ 4.1.71（随 MC 1.21.8 捆绑）下也可用。 |
 | `certChainPath` | *（空）* | 证书的可选显式路径覆盖。非空时优先于 `certDir` + `certFileName`。 |
 | `privateKeyPath` | *（空）* | 私钥的可选显式路径覆盖。非空时优先于 `certDir` + `keyFileName`。 |
 | `privateKeyPassword` | *（空）* | 私钥被加密时的口令。未加密的私钥留空即可。 |

@@ -10,7 +10,7 @@ import net.minecraft.core.Holder;
 import net.minecraft.network.chat.ClickEvent;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.HoverEvent;
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.Identifier;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.Entity;
@@ -23,7 +23,7 @@ import net.minecraft.world.phys.Vec3;
 import net.neoforged.bus.api.EventPriority;
 import net.neoforged.bus.api.ICancellableEvent;
 import net.neoforged.bus.api.SubscribeEvent;
-import net.neoforged.neoforge.common.util.TriState;
+import net.minecraft.util.TriState;
 import net.neoforged.neoforge.event.CommandEvent;
 import net.neoforged.neoforge.event.ServerChatEvent;
 import net.neoforged.neoforge.event.entity.item.ItemTossEvent;
@@ -33,7 +33,6 @@ import net.neoforged.neoforge.event.entity.player.AttackEntityEvent;
 import net.neoforged.neoforge.event.entity.player.ItemEntityPickupEvent;
 import net.neoforged.neoforge.event.entity.player.PlayerEvent;
 import net.neoforged.neoforge.event.entity.player.PlayerInteractEvent;
-import net.neoforged.neoforge.event.level.BlockEvent;
 import net.neoforged.neoforge.event.tick.PlayerTickEvent;
 
 import java.security.SecureRandom;
@@ -88,7 +87,7 @@ public class TwoFactorGuard {
     public enum Result { OK, INVALID_TOKEN, WRONG_ACCOUNT, UNAVAILABLE }
 
     private static final SecureRandom RANDOM = new SecureRandom();
-    private static final ResourceLocation FREEZE_ID = ResourceLocation.fromNamespaceAndPath(OnlineChat.MODID, "two_factor_freeze");
+    private static final Identifier FREEZE_ID = Identifier.fromNamespaceAndPath(OnlineChat.MODID, "two_factor_freeze");
     /** Attributes zeroed while frozen. All of them are synced to the client, so the client stops moving by itself. */
     private static final List<Holder<Attribute>> FROZEN_ATTRIBUTES = List.of(
             Attributes.MOVEMENT_SPEED, Attributes.FLYING_SPEED, Attributes.JUMP_STRENGTH, Attributes.GRAVITY,
@@ -178,13 +177,13 @@ public class TwoFactorGuard {
 
         OnlineChat runtime = OnlineChat.instance();
         if (runtime == null || runtime.getWebServer() == null || !runtime.getWebServer().isRunning()) {
-            OnlineChat.LOGGER.warn("[OnlineChat] {} has 2FA enabled but the web server is not running; skipping the check", player.getGameProfile().getName());
+            OnlineChat.LOGGER.warn("[OnlineChat] {} has 2FA enabled but the web server is not running; skipping the check", player.getGameProfile().name());
             return;
         }
 
         String token = newToken();
         long deadline = System.currentTimeMillis() + ServerConfig.TWO_FACTOR_TIMEOUT_SECONDS.get() * 1000L;
-        Pending p = new Pending(player.getUUID(), player.getGameProfile().getName(), acc.get().getUsername(),
+        Pending p = new Pending(player.getUUID(), player.getGameProfile().name(), acc.get().getUsername(),
                 token, deadline, player.position());
         byPlayer.put(p.playerUuid, p);
         byToken.put(token, p);
@@ -195,8 +194,8 @@ public class TwoFactorGuard {
         player.sendSystemMessage(prefix().append(Lang.text("onlinechat.twofactor.required").withStyle(ChatFormatting.YELLOW)));
         player.sendSystemMessage(Component.literal("  ").append(Component.literal(url).withStyle(style -> style
                 .withColor(ChatFormatting.AQUA).withUnderlined(true)
-                .withClickEvent(new ClickEvent(ClickEvent.Action.OPEN_URL, url))
-                .withHoverEvent(new HoverEvent(HoverEvent.Action.SHOW_TEXT, Lang.text("onlinechat.twofactor.link.hover"))))));
+                .withClickEvent(new ClickEvent.OpenUrl(java.net.URI.create(url)))
+                .withHoverEvent(new HoverEvent.ShowText(Lang.text("onlinechat.twofactor.link.hover"))))));
         player.sendSystemMessage(prefix().append(Lang.text("onlinechat.twofactor.frozen",
                 ServerConfig.TWO_FACTOR_TIMEOUT_SECONDS.get()).withStyle(ChatFormatting.GRAY)));
         OnlineChat.LOGGER.info("[OnlineChat] {} is waiting for 2FA verification (web account '{}')", p.playerName, p.webUsername);
@@ -282,7 +281,7 @@ public class TwoFactorGuard {
     }
 
     @SubscribeEvent(priority = EventPriority.HIGHEST)
-    public void onBreak(BlockEvent.BreakEvent event) {
+    public void onBreak(net.neoforged.neoforge.event.level.block.BreakBlockEvent event) {
         if (isFrozen(event.getPlayer())) event.setCanceled(true);
     }
 

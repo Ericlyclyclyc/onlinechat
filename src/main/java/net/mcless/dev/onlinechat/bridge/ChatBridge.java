@@ -230,7 +230,7 @@ public class ChatBridge {
         }
         rememberAndBroadcast(new ChatMessage(
                 System.currentTimeMillis(), Kind.CHAT,
-                player.getGameProfile().getName(),
+                player.getGameProfile().name(),
                 player.getUUID().toString(),
                 plain, null));
     }
@@ -238,7 +238,7 @@ public class ChatBridge {
     @SubscribeEvent
     public void onPlayerLoggedIn(PlayerEvent.PlayerLoggedInEvent event) {
         if (!shouldBridge("join")) return;
-        String name = event.getEntity().getGameProfile().getName();
+        String name = event.getEntity().getGameProfile().name();
         rememberAndBroadcast(new ChatMessage(System.currentTimeMillis(), Kind.SYSTEM, null, null,
                 Lang.tr("onlinechat.bridge.join", name), "join"));
     }
@@ -246,7 +246,7 @@ public class ChatBridge {
     @SubscribeEvent
     public void onPlayerLoggedOut(PlayerEvent.PlayerLoggedOutEvent event) {
         if (!shouldBridge("quit")) return;
-        String name = event.getEntity().getGameProfile().getName();
+        String name = event.getEntity().getGameProfile().name();
         rememberAndBroadcast(new ChatMessage(System.currentTimeMillis(), Kind.SYSTEM, null, null,
                 Lang.tr("onlinechat.bridge.quit", name), "quit"));
     }
@@ -258,7 +258,7 @@ public class ChatBridge {
         Component msg = player.getCombatTracker().getDeathMessage();
         String text = CommonConfig.STRIP_FORMATTING.get() ? msg.getString() : msg.getString();
         rememberAndBroadcast(new ChatMessage(System.currentTimeMillis(), Kind.SYSTEM,
-                player.getGameProfile().getName(), player.getUUID().toString(),
+                player.getGameProfile().name(), player.getUUID().toString(),
                 text, "death"));
     }
 
@@ -269,9 +269,9 @@ public class ChatBridge {
         Component title = event.getAdvancement().value().display()
                 .map(d -> d.getTitle())
                 .orElse(Component.literal(event.getAdvancement().id().toString()));
-        String text = Lang.tr("onlinechat.bridge.advancement", player.getGameProfile().getName(), title.getString());
+        String text = Lang.tr("onlinechat.bridge.advancement", player.getGameProfile().name(), title.getString());
         rememberAndBroadcast(new ChatMessage(System.currentTimeMillis(), Kind.SYSTEM,
-                player.getGameProfile().getName(), player.getUUID().toString(),
+                player.getGameProfile().name(), player.getUUID().toString(),
                 text, "advancement"));
     }
 

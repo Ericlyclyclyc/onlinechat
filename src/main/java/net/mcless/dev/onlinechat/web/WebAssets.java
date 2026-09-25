@@ -12,8 +12,11 @@ import net.neoforged.neoforgespi.language.IModInfo;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.FileSystem;
+import java.nio.file.FileSystems;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.nio.file.StandardCopyOption;
 import java.nio.file.attribute.DosFileAttributeView;
 import java.nio.file.attribute.FileTime;
@@ -317,12 +320,31 @@ public final class WebAssets {
         }
     }
 
+    /**
+     * Locates the bundled {@code web/} resource root. The mod's own classloader is the single source
+     * of truth here: it handles dev workspaces (where FML loads resources from a separate
+     * {@code resources/main} path), union filesystems and production jars alike. For a jar-backed
+     * resource the root is opened through a zip filesystem; for a plain file it is the directory
+     * containing {@code web/index.html}.
+     */
     private static Path bundledRoot() {
         try {
-            var container = ModList.get().getModContainerById(OnlineChat.MODID).orElse(null);
-            if (container == null) return null;
-            IModInfo info = container.getModInfo();
-            Path root = info.getOwningFile().getFile().findResource(RESOURCE_ROOT);
+            java.net.URL url = WebAssets.class.getClassLoader().getResource(RESOURCE_ROOT + "/index.html");
+            if (url == null) url = WebAssets.class.getResource("/" + RESOURCE_ROOT + "/index.html");
+            if (url == null) return null;
+            if ("jar".equals(url.getProtocol())) {
+                java.net.JarURLConnection jc = (java.net.JarURLConnection) url.openConnection();
+                Path jarPath = Paths.get(jc.getJarFileURL().toURI());
+                FileSystem fs = FileSystems.newFileSystem(java.net.URI.create("jar:" + jarPath.toUri()), java.util.Map.of());
+                Path root = fs.getPath("/" + RESOURCE_ROOT);
+                if (!Files.isDirectory(root)) {
+                    try { fs.close(); } catch (IOException ignored) {}
+                    return null;
+                }
+                return root; // the filesystem stays open for as long as this Path is referenced
+            }
+            Path index = Paths.get(url.toURI());
+            Path root = index.getParent();
             return Files.isDirectory(root) ? root : null;
         } catch (Exception e) {
             OnlineChat.LOGGER.warn("[OnlineChat] Unable to resolve bundled web resources", e);

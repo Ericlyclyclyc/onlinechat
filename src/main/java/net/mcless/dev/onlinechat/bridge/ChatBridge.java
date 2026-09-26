@@ -206,14 +206,16 @@ public class ChatBridge {
                 displayName,
                 session.boundPlayerUuid == null ? null : session.boundPlayerUuid.toString(),
                 text, null);
-        // Persist + push to other web clients (not back to the sender's own view).
+        // Persist, then push the archived frame to EVERY authenticated web session — including the
+        // sender. The web UI renders only server-echoed frames (no optimistic local echo), so
+        // skipping the sender would make their own messages invisible on the web.
         long seq;
         synchronized (this) {
             seq = store.append(rec);
         }
         String payload = GSON.toJson(MessageStore.toClientJson(seq, rec));
         for (WebSessionManager.Session s : sessions.all()) {
-            if (!s.isAuthenticated() || s == session) continue;
+            if (!s.isAuthenticated()) continue;
             if (s.channel.isActive()) s.channel.writeAndFlush(new TextWebSocketFrame(payload));
         }
     }

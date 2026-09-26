@@ -6,6 +6,41 @@
 
 ---
 
+## 仓库结构（分支）
+
+一套代码，**每个 Minecraft 世代一个分支** —— 三个 NeoForge 世代差异太大，无法用单个 jar 覆盖
+（1.20.1 仍使用 `net.minecraftforge` 命名空间；事件、配置与组件 API 在 21.1 与 26.1 之间又发生了迁移）：
+
+| 分支 | Minecraft | NeoForge | 加载器依赖 | 构建 JDK | 工具链 |
+|------|-----------|----------|-----------|---------|--------|
+| **`master`** *（本分支）* | 1.21.1 | 21.1.233+ | `neoforge` | 21 | ModDevGradle 2.0.147 · Gradle 9.2.1 · Mojang 映射 |
+| `mc/1.21.8` | 1.21.8 | 26.1.2.109+ | `neoforge` | 25 | ModDevGradle 2.0.147 · Gradle 9.2.1 · Mojang 映射 |
+| `mc/1.20.1` | 1.20.1 | 47.1.106+ | `forge` | 17 | NeoGradle 6.0.21 · Gradle 8.1.1 · parchment 2023.09.03 |
+
+协作规则：
+
+* **切勿跨分支合并构建脚本。** `build.gradle`、`gradle.properties`、`gradle/wrapper/*` 与
+  `settings.gradle` 各自绑定一套工具链（ModDevGradle vs NeoGradle 6）；只 cherry-pick Java
+  与网页资产的改动。
+* **网页前端与大部分 Java 代码全分支共享** —— 例如 SharedWorker 套接字补丁会原样
+  cherry-pick 到每个分支。
+* 版本相关的 Java 差异很小且彼此隔离（配置 spec 类型、事件名、属性名、mods.toml 位置）。
+* 本地发布 jar 放在被 git 忽略的 `release/` 目录：
+  `git checkout <分支>` → `.\gradlew.bat build` → 把 jar 复制到 `release/`。
+* CI（`.github/workflows/build.yml`）按分支选择 JDK：21（`master`）、21 + 工具链 25（`mc/1.21.8`）、
+  17（`mc/1.20.1`）。
+
+本分支值得注意的差异：
+
+* `netty-codec-http` 4.1.97 通过 JarInJar 内置（MC 1.21.1 不附带它），并放到 ModDevGradle
+  仅供开发使用的 `additionalRuntimeClasspath` 上，以便 IDE 工作区中的 `runServer`/`runClient`
+  能看到它。
+* mods.toml 由 `generateModMetadata` 从 `src/main/templates/META-INF/neoforge.mods.toml`
+  模板生成（ModDevGradle 约定）—— 与 1.20.1 分支不同，后者使用字面量的
+  `src/main/resources/META-INF/mods.toml`。
+
+---
+
 ## 项目结构
 
 ```
@@ -241,12 +276,20 @@ Token 为 32 字节随机数（base64url）、一次性、与进服玩家的 UUI
 ## 构建与发布
 
 ```powershell
-.\gradlew.bat build              # 产出 build/libs/onlinechat-<version>.jar
+.\gradlew.bat build              # 产出 build/libs/onlinechat-1.21.1-neoforge-<版本>.jar
 .\gradlew.bat publish            # 发布到本地 ./repo maven（见 build.gradle）
 ```
 
 在切分发布版本前，先提升 `gradle.properties` 中的 `mod_version`。版本字符串会在构建时
 由 `generateModMetadata` 任务替换进 `META-INF/neoforge.mods.toml`。
+
+每个版本的发布流程：
+
+1. `git checkout <分支>`（本分支构建 1.21.1）。
+2. `.\gradlew.bat build`，并运行 E2E 套件（本地 `%TEMP%\oc-e2e\server-driver.ps1`
+   —— HTTP/HTTPS、WebSocket、REST 与 RCON 检查）。
+3. 把 `build/libs/onlinechat-1.21.1-neoforge-<版本>.jar` 复制进被 git 忽略的 `release/` 目录。
+4. 对 `mc/1.21.8` 与 `mc/1.20.1` 重复以上步骤（1.20.1 上复制的是 **`-all.jar`**）。
 
 ---
 

@@ -3,7 +3,9 @@
 > Languages: **English** | [简体中文](zh/INSTALL.md)
 
 This document covers building the mod from source, deploying it to a server, and
-preparing the TLS material it needs.
+preparing the TLS material it needs. It is written for the **1.21.1** branch
+(`master`); other Minecraft versions live on their own branches — see the
+version table in [README.md](../README.md).
 
 ---
 

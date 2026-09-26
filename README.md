@@ -16,7 +16,7 @@ clickable **[Yes] / [No]** confirmation, and then chat with players in real time
 * 🛡️ Optional **2FA on join**: a player with it enabled is frozen until they confirm from a browser that is signed in to their bound web account.
 * 🌐 Every in-game line is translated **server-side** (`language = "en_us" | "zh_cn"`) — vanilla clients see it.
 * 🧩 The web front-end is extracted to `config/onlinechat/web/` on first start so you can restyle it without rebuilding the jar.
-* 🚫 Zero extra runtime dependencies — Netty and Gson are supplied by Minecraft itself.
+* 🚫 Zero extra runtime dependencies — Netty and Gson come from Minecraft itself; the one module 1.21.1 lacks (`netty-codec-http`) rides inside the jar via JarInJar.
 
 ---
 
@@ -33,6 +33,30 @@ clickable **[Yes] / [No]** confirmation, and then chat with players in real time
 
 > 简体中文版文档见 [README.zh-CN.md](README.zh-CN.md) 与 `docs/zh/` 目录
 > （[安装](docs/zh/INSTALL.md)、[配置](docs/zh/CONFIGURATION.md)、[Web API](docs/zh/WEB_API.md)、[安全](docs/zh/SECURITY.md)、[开发](docs/zh/DEVELOPMENT.md)）。
+
+---
+
+## Supported versions & repository layout
+
+This mod supports three Minecraft generations, one **branch per version** — a single jar
+cannot cover all three (1.20.1 still uses the `net.minecraftforge` namespaces, and the event,
+config and component APIs differ between NeoForge 21.1 and 26.1):
+
+| Branch | Minecraft | NeoForge | Loader dep | Build JDK | Toolchain | Jar to install |
+|--------|-----------|----------|-----------|-----------|-----------|----------------|
+| **`master`** *(this branch)* | 1.21.1 | 21.1.233+ | `neoforge` | 21 | ModDevGradle 2.0.147 · Gradle 9.2.1 | `onlinechat-1.21.1-neoforge-<ver>.jar` |
+| `mc/1.21.8` | 1.21.8 | 26.1.2.109+ | `neoforge` | 25 | ModDevGradle 2.0.147 · Gradle 9.2.1 | `onlinechat-1.21.8-neoforge-<ver>.jar` |
+| `mc/1.20.1` | 1.20.1 | 47.1.106+ | `forge` | 17 | NeoGradle 6.0.21 · Gradle 8.1.1 | `onlinechat-1.20.1-neoforge-<ver>-all.jar` |
+
+Branch-specific notes for **1.21.1**:
+
+* MC 1.21.1 bundles Netty 4.1.97 **without** `netty-codec-http`, so this branch embeds it
+  via JarInJar directly in the released jar (nothing else is bundled).
+* On 1.21.1 the server config lives at `config/onlinechat-server.toml`
+  (the 1.20.1 branch keeps it per-world under `world/serverconfig/`).
+* The `mc/1.20.1` build produces an extra `-all.jar` — install the `-all.jar` there.
+* Release jars for all three versions are kept in the local `release/` folder (git-ignored):
+  `git checkout <branch>` then `.\gradlew.bat build`, and copy the jar over.
 
 ---
 

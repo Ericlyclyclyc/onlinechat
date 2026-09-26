@@ -7,6 +7,43 @@ most likely to touch.
 
 ---
 
+## Repository structure (branches)
+
+One codebase, one branch per Minecraft generation — the three NeoForge lines differ too
+much for a single jar (1.20.1 still uses `net.minecraftforge` namespaces; the event, config
+and component APIs moved again between 21.1 and 26.1):
+
+| Branch | Minecraft | NeoForge | Loader dep | Build JDK | Toolchain |
+|--------|-----------|----------|-----------|-----------|-----------|
+| **`master`** *(this branch)* | 1.21.1 | 21.1.233+ | `neoforge` | 21 | ModDevGradle 2.0.147 · Gradle 9.2.1 · Mojang mappings |
+| `mc/1.21.8` | 1.21.8 | 26.1.2.109+ | `neoforge` | 25 | ModDevGradle 2.0.147 · Gradle 9.2.1 · Mojang mappings |
+| `mc/1.20.1` | 1.20.1 | 47.1.106+ | `forge` | 17 | NeoGradle 6.0.21 · Gradle 8.1.1 · parchment 2023.09.03 |
+
+Working rules:
+
+* **Never merge build scripts across branches.** `build.gradle`, `gradle.properties`,
+  `gradle/wrapper/*` and `settings.gradle` belong to one toolchain each (ModDevGradle vs
+  NeoGradle 6); cherry-pick only Java / web-asset changes.
+* The **web front-end and most Java code are shared** across branches — a fix like the
+  SharedWorker socket patch is cherry-picked onto every branch verbatim.
+* Version-specific Java divergences are small and isolated (config spec types, event
+  names, attribute names, mods.toml location).
+* Local release jars are kept in the git-ignored `release/` folder:
+  `git checkout <branch>` → `.\gradlew.bat build` → copy the jar to `release/`.
+* CI (`.github/workflows/build.yml`) picks the JDK per branch: 21 (`master`), 21 with
+  toolchain 25 (`mc/1.21.8`), 17 (`mc/1.20.1`).
+
+This branch's extras worth knowing:
+
+* `netty-codec-http` 4.1.97 is embedded via JarInJar (MC 1.21.1 does not ship it), and is
+  put on ModDevGradle's dev-only `additionalRuntimeClasspath` so `runServer`/`runClient`
+  see it in the IDE workspace.
+* The mods.toml is templated from `src/main/templates/META-INF/neoforge.mods.toml` by
+  `generateModMetadata` (ModDevGradle convention) — unlike the 1.20.1 branch, which keeps a
+  literal `src/main/resources/META-INF/mods.toml`.
+
+---
+
 ## Project layout
 
 ```
@@ -268,13 +305,22 @@ Upgrading is designed to need no manual migration:
 ## Building and releasing
 
 ```powershell
-.\gradlew.bat build              # produces build/libs/onlinechat-<version>.jar
+.\gradlew.bat build              # produces build/libs/onlinechat-1.21.1-neoforge-<version>.jar
 .\gradlew.bat publish            # publishes to the local ./repo maven (see build.gradle)
 ```
 
 Bump `mod_version` in `gradle.properties` before cutting a release. The version
 string is substituted into `META-INF/neoforge.mods.toml` by the
 `generateModMetadata` task at build time.
+
+Release procedure per version:
+
+1. `git checkout <branch>` (this branch builds 1.21.1).
+2. `.\gradlew.bat build` and verify the E2E suite (`%TEMP%\oc-e2e\server-driver.ps1`
+   locally — HTTP/HTTPS, WebSocket, REST and RCON checks).
+3. Copy `build/libs/onlinechat-1.21.1-neoforge-<version>.jar` into the git-ignored
+   `release/` folder.
+4. Repeat for `mc/1.21.8` and `mc/1.20.1` (on 1.20.1 copy the **`-all.jar`**).
 
 ---
 

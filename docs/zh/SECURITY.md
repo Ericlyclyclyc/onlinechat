@@ -35,7 +35,7 @@
 | `onlinechat/token.secret` | 48 字节 HMAC 密钥（Base64-URL） | 高 —— 泄露后攻击者可为任意用户伪造令牌。 |
 | `onlinechat/chat_history.jsonl` | 追加式聊天归档（作者、文本、时间戳） | 中 —— 私密对话。 |
 | `config/onlinechat/web/` | 网页前端的释放副本（HTML/JS/CSS/locales）+ 隐藏的 `.exist` 标记 | 作为数据低，**作为攻击面高**：能写这里的人可以向所有用户注入脚本。保持由服务器用户拥有，不要全局可写。 |
-| `config/onlinechat-server.toml` | 端口、TLS 路径、可选的 `tokenSecret` 覆盖、可选的私钥口令 | 如果你在此设置了口令或固定密钥，则敏感度为高。 |
+| `world/serverconfig/onlinechat-server.toml` *（1.20.1 为每世界一份）* | 端口、TLS 路径、可选的 `tokenSecret` 覆盖、可选的私钥口令 | 如果你在此设置了口令或固定密钥，则敏感度为高。 |
 
 账号与密钥文件以原子方式写入（临时文件 + `ATOMIC_MOVE`），并且在 POSIX 文件系统上会自动
 限制为仅属主可读写（`0600`）—— 包括 `.tmp` 与 `.bak` 兄弟文件。启动时，损坏的

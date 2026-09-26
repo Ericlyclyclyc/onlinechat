@@ -12,10 +12,12 @@ jobs:
           fetch-depth: 0
           fetch-tags: true
 
-      - name: Setup JDK 21
+      # This branch (mc/1.20.1) uses NeoGradle 6 + Gradle 8.1.1: the daemon must run on
+      # JDK <= 20 and the mod targets the Java 17 runtime MC 1.20.1 ships to players.
+      - name: Setup JDK 17
         uses: actions/setup-java@v4
         with:
-          java-version: '21'
+          java-version: '17'
           distribution: 'temurin'
 
       - name: Setup Gradle

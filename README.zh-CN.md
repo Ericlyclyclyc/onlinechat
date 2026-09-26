@@ -1,4 +1,4 @@
-# Online Chat —— Minecraft ⇄ 网页聊天桥接（NeoForge 1.21.1）
+# Online Chat —— Minecraft ⇄ 网页聊天桥接（NeoForge 1.20.1）
 
 > 语言：[English](README.md) | **简体中文**
 
@@ -16,7 +16,7 @@
 * 🛡️ 可选的 **进服两步验证（2FA）**：开启的玩家进服后被冻结，直到在已登录其绑定网页账号的浏览器中确认。
 * 🌐 所有游戏内文本在 **服务端** 翻译（`language = "en_us" | "zh_cn"`）—— 原版客户端也能看到中文。
 * 🧩 网页前端首次启动时释放到 `config/onlinechat/web/`，无需重新构建 jar 即可自定义。
-* 🚫 零额外运行时依赖 —— Netty 与 Gson 均由 Minecraft 自身提供。
+* 🚫 无需额外安装任何东西 —— Netty 核心与 Gson 来自 Minecraft 自身；1.20.1 缺的那一个 Netty 模块（`netty-codec-http`）通过 JarInJar 内置在 `-all.jar` 中。
 
 ---
 
@@ -35,6 +35,33 @@
 
 ---
 
+## 支持的版本与仓库结构
+
+本模组支持三个 Minecraft 世代，**每个版本一个分支** —— 单个 jar 无法覆盖全部三个版本
+（1.20.1 仍使用 `net.minecraftforge` 命名空间，且 NeoForge 21.1 与 26.1 之间的事件、配置与组件 API 各不相同）：
+
+| 分支 | Minecraft | NeoForge | 加载器依赖 | 构建 JDK | 构建工具链 | 需要安装的 jar |
+|------|-----------|----------|-----------|---------|-----------|----------------|
+| `master` | 1.21.1 | 21.1.250+ | `neoforge` | 21 | ModDevGradle 2.0.147 · Gradle 9.2.1 | `onlinechat-1.21.1-neoforge-<版本>.jar` |
+| `mc/1.21.8` | 1.21.8 | 26.1.2.109+ | `neoforge` | 25 | ModDevGradle 2.0.147 · Gradle 9.2.1 | `onlinechat-1.21.8-neoforge-<版本>.jar` |
+| **`mc/1.20.1`** *（本分支）* | 1.20.1 | 47.1.106+ | `forge` | 17 | NeoGradle 6.0.21 · Gradle 8.1.1 | `onlinechat-1.20.1-neoforge-<版本>-all.jar` |
+
+**1.20.1** 分支专属说明：
+
+* 构建会产出 **两个** jar：普通版 `onlinechat-1.20.1-neoforge-0.0.3-alpha.jar` 与 `-all.jar`。
+  **请安装 `-all.jar`** —— 它通过 JarInJar 内置了 `netty-codec-http` 4.1.82；普通版只是中间构建产物，
+  运行时会出现 `NoClassDefFoundError: HttpServerCodec` 崩溃。
+* MC 1.20.1 自带的 Netty 4.1.82 **不含** `netty-codec-http`（这正是 `-all.jar` 要内置它的原因）。
+  Netty 核心与 Gson 仍然来自 Minecraft 自身。
+* 1.20.1 的 **服务端** 配置跟随世界存放：专用服务器位于 `world/serverconfig/onlinechat-server.toml`
+  （客户端为 `saves/<世界名>/serverconfig/`）。**通用** 配置仍在 `config/onlinechat-common.toml`。
+  （1.21.1 / 1.21.8 的服务端配置已移到 `config/`。）
+* 构建需要 **JDK 17** 守护进程（NeoGradle 6 无法在 JDK 20+ 上运行）；详见 `docs/zh/INSTALL.md`。
+* 三个版本的发布 jar 都保存在本地的 `release/` 目录（已被 git 忽略）：
+  `git checkout <分支>` 后执行 `.\gradlew.bat build`，再把 jar 复制过去即可。
+
+---
+
 ## 快速开始（5 分钟）
 
 1. **把你的 TLS 材料放入** `./ssl/`：
@@ -48,7 +75,9 @@
    ```powershell
    .\gradlew.bat build
    ```
-   jar 会输出到 `build/libs/onlinechat-1.21.1-neoforge-0.0.3-alpha.jar`。
+   构建会产出两个 jar，请安装 **`-all.jar`**：
+   `build/libs/onlinechat-1.20.1-neoforge-0.0.3-alpha-all.jar`
+   （其中内置了 `netty-codec-http` —— 见上方版本表）。
 3. **安装** 到你的 `mods/` 文件夹（服务端和/或客户端 —— Web 服务器只在逻辑服务端一侧启动）。
 4. **启动 Minecraft**（专用服务器，或开放到局域网的单人世界 —— 两者皆可）。
    Web 服务器默认监听 `https://0.0.0.0:8443/`。
@@ -97,7 +126,7 @@
 
 `0.0.2-alpha` 及更高版本改为注册四个具体的交互子类（`RightClickBlock` / `RightClickItem` /
 `EntityInteract` / `LeftClickBlock`），2FA 冻结依然能拦截所有交互，但不会再让服务器崩溃。如果你遇到
-该报错，把 jar 换成 `onlinechat-1.21.1-neoforge-0.0.3-alpha.jar` 即可，无需迁移任何配置或数据。
+该报错，把 jar 换成 `onlinechat-1.20.1-neoforge-0.0.3-alpha-all.jar` 即可，无需迁移任何配置或数据。
 这些版本还新增了归档搜索、公告以及上面列出的网页聊天体验改进。
 
 ---
@@ -132,15 +161,15 @@
 | WebSocket 跨页面共享（SharedWorker）+ 平滑换页过渡 —— 在聊天 ⇄ 账号页面之间切换不会断连，也不会刷屏连接/断开消息 | ✅ |
 | 按 IP 的登录限流 | ✅ |
 | CORS 白名单 | ✅ |
-| 零外部运行时依赖（Netty 与 Gson 来自 Minecraft） | ✅ |
+| 零外部运行时依赖（Netty 核心与 Gson 来自 Minecraft；netty-codec-http 内置在 `-all.jar` 中） | ✅ |
 
 ---
 
 ## 环境要求
 
-* Minecraft **1.21.1**
-* NeoForge **21.1.233** 或更新
-* Java **21**
+* Minecraft **1.20.1**
+* NeoForge **47.1.106** 或更新
+* Java **17**（Minecraft 1.20.1 发给玩家的运行时；构建也需要 JDK 17 守护进程 —— 见 [docs/zh/INSTALL.md](docs/zh/INSTALL.md)）
 * 一份 TLS 证书（自签名证书适用于局域网测试，公开暴露请用 Let's Encrypt）
 
 ---
@@ -148,13 +177,13 @@
 ## 文件位置
 
 ```
-./ssl/                                    # TLS 材料（输入）
-./config/onlinechat-common.toml           # 聊天桥接设置（首次运行时创建）
-./config/onlinechat-server.toml           # HTTPS + 认证 + 存储 + 2FA 设置（首次运行时创建）
-./config/onlinechat/web/                  # 可编辑的网页 UI 副本 + 隐藏的 .exist 标记（首次运行时创建）
-./onlinechat/accounts.json                # 网页账号、绑定、2FA 标志（首次运行时创建）
-./onlinechat/token.secret                 # 自动生成的 HMAC 密钥（首次运行时创建）
-./onlinechat/chat_history.jsonl           # 追加式聊天归档（首次运行时创建）
+./ssl/                                       # TLS 材料（输入）
+./config/onlinechat-common.toml              # 聊天桥接设置（首次运行时创建）
+./world/serverconfig/onlinechat-server.toml  # HTTPS + 认证 + 存储 + 2FA（1.20.1 为每世界一份，首次运行时创建）
+./config/onlinechat/web/                     # 可编辑的网页 UI 副本 + 隐藏的 .exist 标记（首次运行时创建）
+./onlinechat/accounts.json                   # 网页账号、绑定、2FA 标志（首次运行时创建）
+./onlinechat/token.secret                    # 自动生成的 HMAC 密钥（首次运行时创建）
+./onlinechat/chat_history.jsonl              # 追加式聊天归档（首次运行时创建）
 ```
 
 切勿把 `./ssl`、`./onlinechat/accounts.json` 或 `./onlinechat/token.secret` 提交到版本控制。

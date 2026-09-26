@@ -3,6 +3,8 @@
 > 语言：[English](../INSTALL.md) | **简体中文**
 
 本文档介绍如何从源码构建模组、把它部署到服务器，以及准备它所需的 TLS 材料。
+本文针对 **1.20.1** 分支（`mc/1.20.1`）编写；其他 Minecraft 版本在各自的分支上，
+见 [README.zh-CN.md](../README.zh-CN.md) 中的版本表。
 
 ---
 
@@ -10,10 +12,21 @@
 
 | 依赖 | 版本 |
 |------|------|
-| JDK | 21（Microsoft OpenJDK、Temurin、Adoptium 均可） |
-| Minecraft | 1.21.1 |
-| NeoForge | 21.1.250 或更新 |
+| JDK | 17（Microsoft OpenJDK、Temurin、Adoptium 均可） |
+| Minecraft | 1.20.1 |
+| NeoForge | 47.1.106 或更新 |
 | Gradle | 由 wrapper 提供 —— 无需在系统中单独安装 |
+
+> **构建必须使用 JDK 17。** 本分支的构建系统 NeoGradle 6 无法在 JDK 20+ 上运行其
+> Gradle 守护进程，且模组面向 Minecraft 1.20.1 提供给玩家的 Java 17 运行时。
+> 让 JDK 17 出现在 `PATH`/`JAVA_HOME` 上再构建，或显式指定（PowerShell）：
+>
+> ```powershell
+> $env:JAVA_HOME = 'C:\path\to\jdk-17'
+> .\gradlew.bat build
+> ```
+>
+> （wrapper 会自行下载 Gradle 8.1.1 —— 不需要在系统中安装 Gradle。）
 
 Windows PowerShell、macOS Terminal 与 Linux bash 均受支持。
 
@@ -25,12 +38,17 @@ Windows PowerShell、macOS Terminal 与 Linux bash 均受支持。
 .\gradlew.bat build
 ```
 
-输出的 jar 会写入：
+构建会产出 **两个** jar：
 
 ```
-build/libs/onlinechat-1.21.1-neoforge-0.0.3-alpha.jar
+build/libs/onlinechat-1.20.1-neoforge-0.0.3-alpha.jar      # 中间产物 —— 不要安装
+build/libs/onlinechat-1.20.1-neoforge-0.0.3-alpha-all.jar  # 发布用 jar —— 安装这个
 ```
 
+> **请安装 `-all.jar`。** NeoGradle 6 会把 JarInJar（内置的 `netty-codec-http`）写进
+> `-all.jar`；普通 jar 没有内置依赖，第一个 HTTP 请求到达时网页服务器就会以
+> `NoClassDefFoundError: HttpServerCodec` 崩溃。
+>
 > 文件名遵循 NeoForge 约定 `<modid>-<mcversion>-<loader>-<modversion>.jar`。
 > 它由 `gradle.properties` 中的 `mod_id`、`minecraft_version` 与 `mod_version` 派生，因此会
 > 自动跟随你的版本号。
@@ -41,13 +59,15 @@ build/libs/onlinechat-1.21.1-neoforge-0.0.3-alpha.jar
 .\gradlew.bat --refresh-dependencies build
 ```
 
-jar 中包含：
-* 全部编译后的模组类
+`-all.jar` 中包含：
+* 全部编译后的模组类（已重混淆为生产运行时的 SRG 名称）
 * `web/` 下的网页前端（由内置 HTTPS 服务器提供）
-* `META-INF/neoforge.mods.toml`
+* `META-INF/mods.toml`
 * 语言文件 `assets/onlinechat/lang/en_us.json`
+* 内置的 `META-INF/jarjar/netty-codec-http-4.1.82.Final.jar` 与 JarInJar 元数据
 
-**不打包任何外部运行时依赖。** Netty 与 Gson 由 Minecraft 自身提供，模组仅在编译期引用它们。
+Netty 核心（buffer/transport/handler/codec）与 Gson 来自 Minecraft 自身；模组只附带
+1.20.1 缺的那一个 Netty 模块（`netty-codec-http`），不打包也不要求任何其他运行时依赖。
 
 ---
 
@@ -105,7 +125,8 @@ openssl req -x509 -newkey rsa:2048 -nodes -days 365 \
 
 ### 方式 C —— 带密码保护的私钥
 
-如果你的私钥被加密，把口令写进 `config/onlinechat-server.toml`：
+如果你的私钥被加密，把口令写进 `onlinechat-server.toml`（1.20.1 中位于
+`world/serverconfig/` 或 `saves/<世界名>/serverconfig/`）：
 
 ```toml
 [tls]
@@ -118,7 +139,8 @@ openssl req -x509 -newkey rsa:2048 -nodes -days 365 \
 
 ## 4. 在专用服务器上安装
 
-1. 把 `onlinechat-1.21.1-neoforge-0.0.3-alpha.jar` 放入服务器的 `mods/` 文件夹。
+1. 把 `onlinechat-1.20.1-neoforge-0.0.3-alpha-all.jar` 放入服务器的 `mods/` 文件夹
+   （**`-all.jar`**，见第 2 节 —— 普通 jar 没有内置依赖）。
 2. 确保相对于服务器工作目录存在 TLS 材料 —— 默认是 `./ssl/fullchain.pem` 与
    `./ssl/privkey.pem`（或设置 `tls.certDir` 指向它们所在的目录）。
 3. 照常启动服务器（`java -jar ...` 或你的启动脚本）。
@@ -137,9 +159,12 @@ openssl req -x509 -newkey rsa:2048 -nodes -days 365 \
 
 ## 5. 单人 / 局域网安装
 
-同一个 jar 在单人模式下也能工作。打开世界时 Web 服务器启动，离开世界时停止。注意：
+同一个 jar 在单人模式下也能工作。打开世界时 Web 服务器启动，离开世界时停止。注意，
+1.20.1 的 **服务端配置永远是每世界一份**：
 
-* 世界的 `onlinechat-server.toml` 会创建在 `saves/<world>/serverconfig/` 内。
+* 世界的 `onlinechat-server.toml` 会创建在 `saves/<world>/serverconfig/` 内；
+  而在 **专用** 服务器上它位于 `world/serverconfig/onlinechat-server.toml`
+  （跟随世界文件夹，而不是 `config/`）。
 * `onlinechat-common.toml` 是全局的（位于 `config/`）。
 * `./ssl` 仍以 Minecraft 运行目录为基准解析（开发工作区中是 `run/`，生产环境中是启动器的
   实例文件夹）。
@@ -151,7 +176,7 @@ openssl req -x509 -newkey rsa:2048 -nodes -days 365 \
 
 ## 6. 开发工作区
 
-模板随附标准的 ModDevGradle 运行配置：
+本分支使用 **NeoGradle 6**（不是 ModDevGradle）。标准运行配置仍然存在：
 
 ```powershell
 .\gradlew.bat runServer    # 专用服务器，便于测试网页 UI
@@ -159,13 +184,23 @@ openssl req -x509 -newkey rsa:2048 -nodes -days 365 \
 .\gradlew.bat runData      # 数据生成（本模组未使用）
 ```
 
+* **必须使用 JDK 17 守护进程**（见第 1 节）—— NeoGradle 6 无法在 JDK 20+ 上运行。
+* wrapper 把 Gradle 固定在 **8.1.1**（NeoGradle 6 不支持 Gradle 9）。
+* 映射使用 **parchment** `2023.09.03-1.20.1`（NeoGradle 6 中 plain `official` 不可用）。
+* 开发服务器通过 `build.gradle` 中的变通方案加载 `netty-codec-http`（`afterEvaluate`
+  代码块把它追加到运行任务的 minecraft artifacts），因为 FML 1.20.1 只索引 legacy
+  classpath 文件，不索引启动器 `-cp`。
+* 源码里的 mods.toml 位于 `src/main/resources/META-INF/mods.toml`
+  （NeoGradle 约定，值为字面量 —— 没有 `generateModMetadata` 模板处理）。
+
 开发工作目录是 `run/`，因此把 `ssl/` 文件夹复制或软链接到那里：
 
 ```powershell
 New-Item -ItemType Junction -Path .\run\ssl -Target ..\ssl
 ```
 
-或编辑 `run/config/onlinechat-server.toml` 并设置绝对路径。
+或编辑 `run/world/serverconfig/onlinechat-server.toml`（1.20.1 为每世界一份）并设置
+绝对路径，例如 `tls.certDir = "../ssl"` 指向项目根目录。
 
 ---
 
@@ -197,7 +232,8 @@ New-Item -ItemType Junction -Path .\run\ssl -Target ..\ssl
 * **配置（`onlinechat-common.toml` / `onlinechat-server.toml`）** —— NeoForge 会以默认值补上新版本
   引入的每一个键，并保留你已有的值。现在越界的值会被纠正：旧的 `chatHistorySize = 0`
   （之前允许，现在最小值为 `1`）会变为新默认值 `300`。`[twoFactor]`、`[limits]` 等新节以及
-  `language`、`certDir`、`webDir` 等键会自动出现。
+  `language`、`certDir`、`webDir` 等键会自动出现。1.20.1 的服务端配置位于
+  `world/serverconfig/onlinechat-server.toml`（专用服务器）或 `saves/<世界名>/serverconfig/`（单人）。
 * **TLS 路径** —— 若你的配置仍带有旧默认值 `certChainPath = "./ssl/fullchain.pem"` /
   `privateKeyPath = "./ssl/privkey.pem"`（来自 `certDir` 出现之前），它们会被视为未设置，从而
   由 `certDir + certFileName/keyFileName` 接管；服务器会输出一条 INFO 提示你清空它们。

@@ -3,7 +3,9 @@
 > Languages: **English** | [简体中文](zh/INSTALL.md)
 
 This document covers building the mod from source, deploying it to a server, and
-preparing the TLS material it needs.
+preparing the TLS material it needs. It is written for the **1.20.1** branch
+(`mc/1.20.1`); other Minecraft versions live on their own branches — see the
+version table in [README.md](../README.md).
 
 ---
 
@@ -11,10 +13,22 @@ preparing the TLS material it needs.
 
 | Requirement | Version |
 |-------------|---------|
-| JDK | 21 (Microsoft OpenJDK, Temurin, Adoptium all work) |
-| Minecraft | 1.21.1 |
-| NeoForge | 21.1.250 or newer |
+| JDK | 17 (Microsoft OpenJDK, Temurin, Adoptium all work) |
+| Minecraft | 1.20.1 |
+| NeoForge | 47.1.106 or newer |
 | Gradle | Provided by the wrapper — no system install needed |
+
+> **JDK 17 for building is mandatory.** NeoGradle 6 (the build system of this branch)
+> cannot run its Gradle daemon on JDK 20+, and the mod targets the Java 17 runtime that
+> Minecraft 1.20.1 ships to players. Run the build with a JDK 17 on `PATH`/`JAVA_HOME`,
+> or point Gradle at one explicitly (PowerShell):
+>
+> ```powershell
+> $env:JAVA_HOME = 'C:\path\to\jdk-17'
+> .\gradlew.bat build
+> ```
+>
+> (The wrapper downloads Gradle 8.1.1 itself — no system Gradle is needed.)
 
 Windows PowerShell, macOS Terminal and Linux bash are all supported.
 
@@ -26,12 +40,17 @@ Windows PowerShell, macOS Terminal and Linux bash are all supported.
 .\gradlew.bat build
 ```
 
-The output jar is written to:
+The build produces **two** jars:
 
 ```
-build/libs/onlinechat-1.21.1-neoforge-0.0.3-alpha.jar
+build/libs/onlinechat-1.20.1-neoforge-0.0.3-alpha.jar      # intermediate — DO NOT install
+build/libs/onlinechat-1.20.1-neoforge-0.0.3-alpha-all.jar  # the release jar — install this one
 ```
 
+> **Install the `-all.jar`.** NeoGradle 6 writes the JarInJar (embedded `netty-codec-http`)
+> into the `-all.jar`; the plain jar has no embedded dependency and the web server crashes with
+> `NoClassDefFoundError: HttpServerCodec` as soon as the first HTTP request arrives.
+>
 > The file name follows the NeoForge convention `<modid>-<mcversion>-<loader>-<modversion>.jar`.
 > It is derived from `mod_id`, `minecraft_version` and `mod_version` in `gradle.properties`, so it
 > tracks your version automatically.
@@ -42,14 +61,16 @@ If Gradle reports missing dependencies after a network change, refresh them with
 .\gradlew.bat --refresh-dependencies build
 ```
 
-The jar contains:
-* All compiled mod classes
+The `-all.jar` contains:
+* All compiled mod classes (re-obfuscated to SRG names for the production runtime)
 * The web frontend under `web/` (served by the embedded HTTPS server)
-* `META-INF/neoforge.mods.toml`
+* `META-INF/mods.toml`
 * Language file `assets/onlinechat/lang/en_us.json`
+* The embedded `META-INF/jarjar/netty-codec-http-4.1.82.Final.jar` + JarInJar metadata
 
-**No external runtime dependencies are bundled.** Netty and Gson are provided by
-Minecraft itself, and the mod only references them at compile time.
+Netty core (buffer/transport/handler/codec) and Gson come from Minecraft itself; the mod
+only ships the one Netty module 1.20.1 lacks (`netty-codec-http`). No other runtime
+dependencies are bundled or required.
 
 ---
 
@@ -125,7 +146,8 @@ If your key is encrypted, put the passphrase in `config/onlinechat-server.toml`:
 
 ## 4. Install on a dedicated server
 
-1. Drop `onlinechat-1.21.1-neoforge-0.0.3-alpha.jar` into your server's `mods/` folder.
+1. Drop `onlinechat-1.20.1-neoforge-0.0.3-alpha-all.jar` into your server's `mods/` folder
+   (the **`-all.jar`**, see §2 — the plain jar has no embedded dependency).
 2. Make sure the TLS material exists relative to the server's working directory — by default
    `./ssl/fullchain.pem` and `./ssl/privkey.pem` (or set `tls.certDir` to wherever they live).
 3. Start the server as usual (`java -jar ...` or your start script).
@@ -146,10 +168,11 @@ The mod does **not** need to be installed on players' clients. In-game chat and 
 ## 5. Install for single-player / LAN
 
 The same jar works in single-player. The web server starts when you open a world and
-stops when you leave it. Note that:
+stops when you leave it. Note that on 1.20.1 the **server config is always per-world**:
 
 * The world's `onlinechat-server.toml` is created inside
-  `saves/<world>/serverconfig/`.
+  `saves/<world>/serverconfig/` — and on a **dedicated** server it lives at
+  `world/serverconfig/onlinechat-server.toml` (next to the world folder, not in `config/`).
 * The `onlinechat-common.toml` is global (`config/`).
 * `./ssl` still resolves against the Minecraft run directory (`run/` in a dev
   workspace, or the launcher's instance folder in production).
@@ -161,7 +184,7 @@ project root, or override `tls.certChainPath` / `tls.privateKeyPath` directly.
 
 ## 6. Development workspace
 
-The template ships with the standard ModDevGradle run configs:
+This branch uses **NeoGradle 6** (not ModDevGradle). The standard run configs still exist:
 
 ```powershell
 .\gradlew.bat runServer    # dedicated server, useful for testing the web UI
@@ -169,13 +192,23 @@ The template ships with the standard ModDevGradle run configs:
 .\gradlew.bat runData      # data generation (unused by this mod)
 ```
 
+* **JDK 17 daemon required** (see §1) — NeoGradle 6 cannot run on JDK 20+.
+* Gradle is pinned to **8.1.1** by the wrapper (NeoGradle 6 does not support Gradle 9).
+* Mappings are **parchment** `2023.09.03-1.20.1` (plain `official` is broken in NeoGradle 6).
+* The dev server loads `netty-codec-http` through a `build.gradle` workaround
+  (`afterEvaluate` block appending it to the run tasks' minecraft artifacts), because
+  FML 1.20.1 only indexes the legacy classpath file, not the launcher `-cp`.
+* The source mods.toml lives at `src/main/resources/META-INF/mods.toml`
+  (NeoGradle convention, values are literals — no `generateModMetadata` templating).
+
 The dev working directory is `run/`, so copy or symlink the `ssl/` folder there:
 
 ```powershell
 New-Item -ItemType Junction -Path .\run\ssl -Target ..\ssl
 ```
 
-Or edit `run/config/onlinechat-server.toml` and set absolute paths.
+Or edit `run/world/serverconfig/onlinechat-server.toml` (per-world on 1.20.1) and set
+absolute paths, e.g. `tls.certDir = "../ssl"` for the project root.
 
 ---
 
@@ -210,7 +243,8 @@ to your existing data:
   version introduces with its default and keeps your existing values. A value that is now out of range
   is clamped: an old `chatHistorySize = 0` (allowed before, now minimum `1`) becomes the new default
   `300`. New sections such as `[twoFactor]`, `[limits]` and keys like `language`, `certDir`, `webDir`
-  simply appear.
+  simply appear. On 1.20.1 the server config lives at `world/serverconfig/onlinechat-server.toml`
+  (dedicated) or `saves/<world>/serverconfig/` (single-player).
 * **TLS paths** — if your config still carries the old defaults `certChainPath = "./ssl/fullchain.pem"`
   / `privateKeyPath = "./ssl/privkey.pem"` (from before `certDir` existed), they are treated as unset so
   `certDir + certFileName/keyFileName` take over; the server logs one INFO line suggesting you clear them.

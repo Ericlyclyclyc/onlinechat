@@ -7,10 +7,11 @@ Online Chat 使用 **两个** 配置文件，二者都会在首次启动时以�
 | 文件 | 作用域 | 内容 |
 |------|--------|------|
 | `config/onlinechat-common.toml`  | 全局（两端都会加载） | 聊天桥接行为、前缀、格式化 |
-| `config/onlinechat-server.toml`  | 仅服务端 | HTTPS 监听器、TLS 材料、认证、存储、CORS |
+| `world/serverconfig/onlinechat-server.toml` *（专用服务器）* | 仅服务端 | HTTPS 监听器、TLS 材料、认证、存储、CORS |
 
-> 在内置服务器（单人）上，`onlinechat-server.toml` 会写入 `saves/<world>/serverconfig/`
-> 而不是 `config/`。
+> 1.20.1 的服务端配置 **永远是每世界一份**：专用服务器读取
+> `world/serverconfig/onlinechat-server.toml`，单人世界使用
+> `saves/<世界名>/serverconfig/`。（1.21.1 / 1.21.8 分支已把它移到 `config/`。）
 
 在客户端上，两个文件都可以通过游戏内的 **Mods → Online Chat → Config** 界面热编辑。
 在专用服务器上，手动编辑它们并运行 `/onlinechat reload`（仅限 OP）即可在不完整重启的情况下

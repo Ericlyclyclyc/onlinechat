@@ -36,7 +36,7 @@ The mod writes these files (locations configurable):
 | `onlinechat/token.secret` | 48-byte HMAC secret (Base64-URL) | High — a leak lets an attacker forge tokens for any user. |
 | `onlinechat/chat_history.jsonl` | Append-only chat archive (author, text, timestamp) | Medium — private conversations. |
 | `config/onlinechat/web/` | Extracted copy of the web front-end (HTML/JS/CSS/locales) + hidden `.exist` marker | Low as data, **high as an attack surface**: anyone who can write here can inject script served to every user. Keep it owned by the server user, not world-writable. |
-| `config/onlinechat-server.toml` | Ports, TLS paths, optional `tokenSecret` override, optional key passphrase | High if you set a passphrase or fixed secret here. |
+| `world/serverconfig/onlinechat-server.toml` *(per-world on 1.20.1)* | Ports, TLS paths, optional `tokenSecret` override, optional key passphrase | High if you set a passphrase or fixed secret here. |
 
 The account and secret files are written atomically (temp file + `ATOMIC_MOVE`) and, on POSIX
 filesystems, are automatically restricted to owner read/write (`0600`) — including the `.tmp` and

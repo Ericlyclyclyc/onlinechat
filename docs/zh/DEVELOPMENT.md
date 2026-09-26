@@ -6,6 +6,42 @@
 
 ---
 
+## 仓库结构（分支）
+
+一套代码，**每个 Minecraft 世代一个分支** —— 三个 NeoForge 世代差异太大，无法用单个 jar 覆盖
+（1.20.1 仍使用 `net.minecraftforge` 命名空间；事件、配置与组件 API 在 21.1 与 26.1 之间又发生了迁移）：
+
+| 分支 | Minecraft | NeoForge | 加载器依赖 | 构建 JDK | 工具链 |
+|------|-----------|----------|-----------|---------|--------|
+| `master` | 1.21.1 | 21.1.250+ | `neoforge` | 21 | ModDevGradle 2.0.147 · Gradle 9.2.1 · Mojang 映射 |
+| `mc/1.21.8` | 1.21.8 | 26.1.2.109+ | `neoforge` | 25 | ModDevGradle 2.0.147 · Gradle 9.2.1 · Mojang 映射 |
+| **`mc/1.20.1`** *（本分支）* | 1.20.1 | 47.1.106+ | `forge` | 17 | NeoGradle 6.0.21 · Gradle 8.1.1 · parchment 2023.09.03 |
+
+协作规则：
+
+* **切勿跨分支合并构建脚本。** `build.gradle`、`gradle.properties`、`gradle/wrapper/*` 与
+  `settings.gradle` 各自绑定一套工具链（ModDevGradle vs NeoGradle 6）；只 cherry-pick Java
+  与网页资产的改动。
+* **网页前端与大部分 Java 代码全分支共享** —— 例如 SharedWorker 套接字补丁会原样
+  cherry-pick 到每个分支。
+* 版本相关的 Java 差异很小且彼此隔离（配置 spec 类型、事件名、属性名、mods.toml 位置）。
+* 本地发布 jar 放在被 git 忽略的 `release/` 目录：
+  `git checkout <分支>` → `.\gradlew.bat build` → 把 jar 复制到 `release/`。
+* CI（`.github/workflows/build.yml`）按分支选择 JDK：21（`master`）、21 + 工具链 25（`mc/1.21.8`）、
+  17（`mc/1.20.1`）。
+
+本分支值得注意的差异：
+
+* **NeoGradle 6** 要求 **JDK 17 的 Gradle 守护进程**（不能是 JDK 20+），并且 wrapper 固定在
+  **Gradle 8.1.1**（不支持 Gradle 9）。
+* 映射使用 **parchment**（`2023.09.03-1.20.1`）—— NG6 下 1.20.1 的 plain `official` 不可用。
+* mods.toml 位于 `src/main/resources/META-INF/mods.toml`，值为字面量（没有 `generateModMetadata`
+  模板处理），`pack.mcmeta` 使用 `pack_format 15`。
+* 服务端配置是 **每世界一份**（专用服务器位于 `world/serverconfig/onlinechat-server.toml`）
+  —— 见 `ServerConfig` 的 javadoc。
+
+---
+
 ## 项目结构
 
 ```
@@ -53,7 +89,8 @@ src/main/resources/
     ├── style.css                 # 深色玻璃拟态主题
     └── locales/en.json, zh-CN.json   # 前端 UI 词典
 
-src/main/templates/META-INF/neoforge.mods.toml   # 由 generateModMetadata 处理
+src/main/resources/META-INF/mods.toml   # NeoGradle 6 约定：字面量值，无模板处理
+src/main/resources/pack.mcmeta          # pack_format 15
 ```
 
 ---
@@ -101,16 +138,30 @@ WebServer.start()
 
 ### 为什么用 Netty（而不是 `com.sun.net.httpserver` 或第三方库）？
 
-Minecraft 已经捆绑了 Netty 4.1.97.Final（`netty-codec-http`、`netty-handler`、
-`netty-transport`……）。使用 Netty 意味着：
+Minecraft 1.20.1 捆绑了 Netty 4.1.82.Final 的大部分模块（`netty-handler`、`netty-transport`、
+`netty-codec`……），唯独缺少包含本模组所需 HTTP/WebSocket 编解码器的 `netty-codec-http`。
+使用 Netty 意味着：
 
-* **零额外运行时依赖** —— 无需 shade，无 jar-in-jar，也不会与其他模组产生版本冲突。
+* **无需额外安装任何东西** —— `netty-codec-http` 是唯一随 jar 分发的构件，通过 **JarInJar** 打进
+  发布的 `-all.jar`（`build.gradle` 中 `jarJar('io.netty:netty-codec-http:[4.1.82.Final,4.1.83)')`
+  外加 `jarJar.enable()` —— NeoGradle 6 默认禁用 jarJar 任务）；其余全部来自 Minecraft 自身，
+  运行时类路径上不会有重复的 Netty 类。
 * 对 WebSocket 协议（`WebSocketServerHandshaker`、`TextWebSocketFrame`）与 TLS
   （`SslContextBuilder.forServer(File, File)`）的原生支持。
 * 久经考验的事件循环模型，与 Minecraft 自身的网络层一致。
 
-编译类路径需要对 Netty 构件显式声明 `compileOnly`（见 `build.gradle`），因为 ModDevGradle
-不会重新导出 Minecraft 的传递依赖。运行时这些类由 Minecraft 自身提供。
+编译类路径需要对 Netty 核心构件显式声明 `compileOnly`（见 `build.gradle`），因为 NeoGradle
+不会重新导出 Minecraft 的传递依赖。运行时 Netty 核心类由 Minecraft 自身提供，
+`netty-codec-http` 则通过 JarInJar 打进 `-all.jar`。
+
+**本分支专属的开发运行时怪癖：** NeoGradle 6 会把 jarJar/项目依赖放进启动器 `-cp`，
+但 FML 1.20.1 的类加载层是从运行的 *legacy classpath 文件*
+（`build/classpath/runServer_minecraftClasspath.txt`，完全由 `minecraft` 配置喂给）构建的，
+从不索引普通 `-cp` —— 因此除非把该 jar 追加到运行任务的 *minecraft artifacts*，
+`runServer` 中每个请求都会因 `NoClassDefFoundError: HttpServerCodec` 挂掉。
+`build.gradle` 底部的 `afterEvaluate` 代码块正是为 `runServer`/`runClient`/`runData`/
+`runGameTestServer` 做了这件事。`minecraft` 配置本身必须保持单依赖
+（"must contain exactly one dependency"），所以变通方案走的是任务的 `minecraftArtifacts` 集合。
 
 ### 为什么用无状态 HMAC 令牌而不是会话？
 
@@ -139,9 +190,10 @@ Minecraft 已经捆绑了 Netty 4.1.97.Final（`netty-codec-http`、`netty-handl
 
 ### 为什么 2FA 用属性 + 事件冻结而不是 Mixin / 包过滤？
 
-`TwoFactorGuard` 通过 `ADD_MULTIPLIED_TOTAL -1` 修饰符把移动速度、跳跃、飞行速度、重力与
-交互距离归零，冻结期间取消交互 / 攻击 / 使用物品 / 丢弃 / 命令事件，并每 tick 把玩家拉回
-进服位置。这全部是 NeoForge 公开 API：不 Mixin 网络层，因而不会与替换 tick 或区块管线的
+`TwoFactorGuard` 通过 `ADD_MULTIPLIED_TOTAL -1` 修饰符把移动速度、飞行速度与跳跃强度归零
+（1.20.1 没有重力 / 方块交互距离 / 实体交互距离属性，因此冻结依赖速度归零加上被取消的
+交互 / 攻击 / 使用物品 / 丢弃 / 命令事件），并每 tick 把玩家拉回进服位置。这全部是
+NeoForge 公开 API：不 Mixin 网络层，因而不会与替换 tick 或区块管线的
 模组（Create、Sable……）冲突。代价是冻结期间客户端仍会收到世界数据包 —— 只是玩家无法
 对其做任何操作。
 
@@ -241,12 +293,23 @@ Token 为 32 字节随机数（base64url）、一次性、与进服玩家的 UUI
 ## 构建与发布
 
 ```powershell
-.\gradlew.bat build              # 产出 build/libs/onlinechat-<version>.jar
-.\gradlew.bat publish            # 发布到本地 ./repo maven（见 build.gradle）
+$env:JAVA_HOME = 'C:\path\to\jdk-17'   # NeoGradle 6 需要 JDK ≤ 20 的守护进程
+.\gradlew.bat build                    # 产出 onlinechat-1.20.1-neoforge-0.0.3-alpha.jar 与 -all.jar
+.\gradlew.bat publish                  # 发布到本地 ./repo maven（见 build.gradle）
 ```
 
-在切分发布版本前，先提升 `gradle.properties` 中的 `mod_version`。版本字符串会在构建时
-由 `generateModMetadata` 任务替换进 `META-INF/neoforge.mods.toml`。
+在切分发布版本前，先提升 `gradle.properties` 中的 `mod_version`。本分支的版本号以字面量
+形式写在 `src/main/resources/META-INF/mods.toml` 里 —— 请保持同步（NeoGradle 6 没有
+`generateModMetadata` 模板处理）。
+
+每个版本的发布流程：
+
+1. `git checkout <分支>`（本分支构建 1.20.1）。
+2. `.\gradlew.bat build`，并运行 E2E 套件（本地 `%TEMP%\oc-e2e\server-driver.ps1`
+   —— HTTP/HTTPS、WebSocket、REST 与 RCON 检查）。
+3. 把 **`build/libs/onlinechat-1.20.1-neoforge-0.0.3-alpha-all.jar`**（JarInJar 产物 ——
+   普通 jar 不可运行）复制进被 git 忽略的 `release/` 目录。
+4. 对 `master`（1.21.1）与 `mc/1.21.8` 重复以上步骤。
 
 ---
 

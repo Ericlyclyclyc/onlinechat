@@ -8,10 +8,11 @@ launch with sensible defaults.
 | File | Scope | Contents |
 |------|-------|----------|
 | `config/onlinechat-common.toml`  | Global (loaded on both sides) | Chat-bridge behaviour, prefixes, formatting |
-| `config/onlinechat-server.toml`  | Server-side only | HTTPS listener, TLS material, authentication, storage, CORS |
+| `world/serverconfig/onlinechat-server.toml` *(dedicated)* | Server-side only | HTTPS listener, TLS material, authentication, storage, CORS |
 
-> On an integrated server (single-player), `onlinechat-server.toml` is written to
-> `saves/<world>/serverconfig/` instead of `config/`.
+> On 1.20.1 the server config is **always per-world**: a dedicated server reads
+> `world/serverconfig/onlinechat-server.toml`, a single-player world uses
+> `saves/<world>/serverconfig/`. (On the 1.21.1 / 1.21.8 branches it moved to `config/`.)
 
 Both files are hot-editable from the in-game **Mods → Online Chat → Config** screen
 on the client. On a dedicated server, edit them by hand and run

@@ -7,6 +7,44 @@ most likely to touch.
 
 ---
 
+## Repository structure (branches)
+
+One codebase, one branch per Minecraft generation — the three NeoForge lines differ too
+much for a single jar (1.20.1 still uses `net.minecraftforge` namespaces; the event, config
+and component APIs moved again between 21.1 and 26.1):
+
+| Branch | Minecraft | NeoForge | Loader dep | Build JDK | Toolchain |
+|--------|-----------|----------|-----------|-----------|-----------|
+| `master` | 1.21.1 | 21.1.250+ | `neoforge` | 21 | ModDevGradle 2.0.147 · Gradle 9.2.1 · Mojang mappings |
+| `mc/1.21.8` | 1.21.8 | 26.1.2.109+ | `neoforge` | 25 | ModDevGradle 2.0.147 · Gradle 9.2.1 · Mojang mappings |
+| **`mc/1.20.1`** *(this branch)* | 1.20.1 | 47.1.106+ | `forge` | 17 | NeoGradle 6.0.21 · Gradle 8.1.1 · parchment 2023.09.03 |
+
+Working rules:
+
+* **Never merge build scripts across branches.** `build.gradle`, `gradle.properties`,
+  `gradle/wrapper/*` and `settings.gradle` belong to one toolchain each (ModDevGradle vs
+  NeoGradle 6); cherry-pick only Java / web-asset changes.
+* The **web front-end and most Java code are shared** across branches — a fix like the
+  SharedWorker socket patch is cherry-picked onto every branch verbatim.
+* Version-specific Java divergences are small and isolated (config spec types, event
+  names, attribute names, mods.toml location).
+* Local release jars are kept in the git-ignored `release/` folder:
+  `git checkout <branch>` → `.\gradlew.bat build` → copy the jar to `release/`.
+* CI (`.github/workflows/build.yml`) picks the JDK per branch: 21 (`master`), 21 with
+  toolchain 25 (`mc/1.21.8`), 17 (`mc/1.20.1`).
+
+This branch's extras worth knowing:
+
+* **NeoGradle 6** requires a **JDK 17 Gradle daemon** (no JDK 20+) and **Gradle 8.1.1**
+  (pinned by the wrapper; no Gradle 9).
+* Mappings are **parchment** (`2023.09.03-1.20.1`) — plain `official` is broken in NG6 for 1.20.1.
+* The mods.toml lives at `src/main/resources/META-INF/mods.toml` with literal values
+  (no `generateModMetadata` templating), and `pack.mcmeta` uses `pack_format 15`.
+* The server config is **per-world** (`world/serverconfig/onlinechat-server.toml` on dedicated
+  servers) — see `ServerConfig`'s javadoc.
+
+---
+
 ## Project layout
 
 ```
@@ -54,7 +92,8 @@ src/main/resources/
     ├── style.css                 # dark glassmorphism theme
     └── locales/en.json, zh-CN.json   # front-end UI dictionaries
 
-src/main/templates/META-INF/neoforge.mods.toml   # processed by generateModMetadata
+src/main/resources/META-INF/mods.toml   # NeoGradle 6 convention: literal values, no templating
+src/main/resources/pack.mcmeta          # pack_format 15
 ```
 
 ---
@@ -103,24 +142,33 @@ any pending mutations.
 
 ### Why Netty (and not `com.sun.net.httpserver` or a third-party lib)?
 
-Minecraft already bundles most of Netty 4.1.97.Final (`netty-handler`, `netty-transport`,
+Minecraft 1.20.1 bundles most of Netty 4.1.82.Final (`netty-handler`, `netty-transport`,
 `netty-codec`, …) — except `netty-codec-http`, which contains the HTTP/WebSocket codecs this mod
 needs. Using Netty means:
 
-* **Zero extra runtime dependencies** — `netty-codec-http` is the one artefact shipped inside the
-  mod jar via **JarInJar** (`jarJar(...) { transitive = false }` in `build.gradle`); everything else
-  comes from Minecraft itself, so there are no duplicate Netty classes on the runtime classpath.
+* **Nothing extra to install** — `netty-codec-http` is the one artefact shipped inside the
+  released `-all.jar` via **JarInJar** (`jarJar('io.netty:netty-codec-http:[4.1.82.Final,4.1.83)')`
+  plus `jarJar.enable()` in `build.gradle` — NeoGradle 6 keeps the jarJar task disabled by
+  default); everything else comes from Minecraft itself, so there are no duplicate Netty
+  classes on the runtime classpath.
 * Native support for the WebSocket protocol (`WebSocketServerHandshaker`,
   `TextWebSocketFrame`) and TLS (`SslContextBuilder.forServer(File, File)`).
 * Battle-tested event-loop model, matching Minecraft's own network layer.
 
-The compile classpath needs an explicit `compileOnly` on the Netty artefacts
-(see `build.gradle`) because ModDevGradle does not re-export Minecraft's
-transitive dependencies. At runtime the classes come from Minecraft itself, except
-`netty-codec-http`, which is jarJar'd — and is additionally put on ModDevGradle's
-dev-only `additionalRuntimeClasspath` configuration so `runServer` / `runClient`
-work in the IDE workspace (on MC ≤ 1.21.8 the Gradle run configurations do not
-see jarJar'd artefacts).
+The compile classpath needs an explicit `compileOnly` on the Netty core artefacts
+(see `build.gradle`) because NeoGradle does not re-export Minecraft's transitive
+dependencies. At runtime the core Netty classes come from Minecraft itself, except
+`netty-codec-http`, which is jarJar'd into the `-all.jar`.
+
+**Dev-runtime quirk (this branch only):** NeoGradle 6 puts jarJar/project dependencies on the
+launcher `-cp`, but FML 1.20.1 builds its class-loading layers from the run's
+*legacy classpath file* (`build/classpath/runServer_minecraftClasspath.txt`, fed exclusively
+by the `minecraft` configuration) and never indexes the plain `-cp` — so
+`NoClassDefFoundError: HttpServerCodec` kills every request in `runServer` unless the jar is
+appended to the run task's *minecraft artifacts*. The `afterEvaluate` block at the bottom of
+`build.gradle` does exactly that for `runServer`/`runClient`/`runData`/`runGameTestServer`.
+The `minecraft` configuration itself must stay a single dependency ("must contain exactly one
+dependency"), which is why the hack goes through the task's `minecraftArtifacts` collection.
 
 ### Why stateless HMAC tokens and not sessions?
 
@@ -151,9 +199,11 @@ player's own client confirms the intent.
 
 ### Why attribute + event freezing for 2FA instead of Mixins / packet filtering?
 
-`TwoFactorGuard` zeroes movement speed, jump strength, flying speed, gravity and reach via
-`ADD_MULTIPLIED_TOTAL -1` modifiers, cancels interaction / attack / item-use / drop / command
-events while frozen, and snaps the player back to the join position every tick. That is
+`TwoFactorGuard` zeroes movement speed, flying speed and jump strength via
+`ADD_MULTIPLIED_TOTAL -1` modifiers (1.20.1 has no gravity / block-interaction-range /
+entity-interaction-range attributes, so the freeze relies on the speed zeroing plus the
+cancelled interaction / attack / item-use / drop / command events), and snaps the player
+back to the join position every tick. That is
 pure NeoForge API: no Mixin into the network layer, so it cannot collide with mods that
 replace the tick or chunk pipeline (Create, Sable, …). The trade-off is that the client
 still receives world packets during the freeze — the player just cannot act on them.
@@ -268,13 +318,23 @@ Upgrading is designed to need no manual migration:
 ## Building and releasing
 
 ```powershell
-.\gradlew.bat build              # produces build/libs/onlinechat-<version>.jar
-.\gradlew.bat publish            # publishes to the local ./repo maven (see build.gradle)
+$env:JAVA_HOME = 'C:\path\to\jdk-17'   # NeoGradle 6 needs a JDK ≤ 20 daemon
+.\gradlew.bat build                    # produces build/libs/onlinechat-1.20.1-neoforge-0.0.3-alpha.jar + -all.jar
+.\gradlew.bat publish                  # publishes to the local ./repo maven (see build.gradle)
 ```
 
-Bump `mod_version` in `gradle.properties` before cutting a release. The version
-string is substituted into `META-INF/neoforge.mods.toml` by the
-`generateModMetadata` task at build time.
+Bump `mod_version` in `gradle.properties` before cutting a release. On this branch the
+version lives as a literal in `src/main/resources/META-INF/mods.toml` — keep it in sync
+(there is no `generateModMetadata` templating on NeoGradle 6).
+
+Release procedure per version:
+
+1. `git checkout <branch>` (this branch builds 1.20.1).
+2. `.\gradlew.bat build` and verify the E2E suite (`%TEMP%\oc-e2e\server-driver.ps1`
+   locally — HTTP/HTTPS, WebSocket, REST and RCON checks).
+3. Copy **`build/libs/onlinechat-1.20.1-neoforge-0.0.3-alpha-all.jar`** (the JarInJar
+   artifact — the plain jar is not runnable) into the git-ignored `release/` folder.
+4. Repeat for `master` (1.21.1) and `mc/1.21.8`.
 
 ---
 

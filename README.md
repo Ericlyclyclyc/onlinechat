@@ -1,4 +1,4 @@
-# Online Chat — Minecraft ⇄ Web bridge (NeoForge 1.21.1)
+# Online Chat — Minecraft ⇄ Web bridge (NeoForge 1.20.1)
 
 > Languages: **English** | [简体中文](README.zh-CN.md)
 
@@ -16,7 +16,7 @@ clickable **[Yes] / [No]** confirmation, and then chat with players in real time
 * 🛡️ Optional **2FA on join**: a player with it enabled is frozen until they confirm from a browser that is signed in to their bound web account.
 * 🌐 Every in-game line is translated **server-side** (`language = "en_us" | "zh_cn"`) — vanilla clients see it.
 * 🧩 The web front-end is extracted to `config/onlinechat/web/` on first start so you can restyle it without rebuilding the jar.
-* 🚫 Zero extra runtime dependencies — Netty and Gson are supplied by Minecraft itself.
+* 🚫 Nothing extra to install — Netty core and Gson come from Minecraft itself; the one Netty module 1.20.1 lacks (`netty-codec-http`) rides inside the `-all.jar` via JarInJar.
 
 ---
 
@@ -36,6 +36,35 @@ clickable **[Yes] / [No]** confirmation, and then chat with players in real time
 
 ---
 
+## Supported versions & repository layout
+
+This mod supports three Minecraft generations, one **branch per version** — a single jar
+cannot cover all three (1.20.1 still uses the `net.minecraftforge` namespaces, and the event,
+config and component APIs differ between NeoForge 21.1 and 26.1):
+
+| Branch | Minecraft | NeoForge | Loader dep | Build JDK | Toolchain | Jar to install |
+|--------|-----------|----------|-----------|-----------|-----------|----------------|
+| `master` | 1.21.1 | 21.1.250+ | `neoforge` | 21 | ModDevGradle 2.0.147 · Gradle 9.2.1 | `onlinechat-1.21.1-neoforge-<ver>.jar` |
+| `mc/1.21.8` | 1.21.8 | 26.1.2.109+ | `neoforge` | 25 | ModDevGradle 2.0.147 · Gradle 9.2.1 | `onlinechat-1.21.8-neoforge-<ver>.jar` |
+| **`mc/1.20.1`** *(this branch)* | 1.20.1 | 47.1.106+ | `forge` | 17 | NeoGradle 6.0.21 · Gradle 8.1.1 | `onlinechat-1.20.1-neoforge-<ver>-all.jar` |
+
+Branch-specific notes for **1.20.1**:
+
+* The build produces **two** jars: the plain `onlinechat-1.20.1-neoforge-0.0.3-alpha.jar` and
+  the `-all.jar`. **Install the `-all.jar`** — it embeds `netty-codec-http` 4.1.82 via JarInJar;
+  the plain jar is only an intermediate build artifact and will crash with
+  `NoClassDefFoundError: HttpServerCodec` at runtime.
+* MC 1.20.1 bundles Netty 4.1.82 **without** `netty-codec-http` (that is why the `-all.jar`
+  carries it). Netty core and Gson still come from Minecraft itself.
+* On 1.20.1 the **server** config lives next to the world: `world/serverconfig/onlinechat-server.toml`
+  on a dedicated server (`saves/<world>/serverconfig/` on a client). The **common** config is
+  still `config/onlinechat-common.toml`. (On 1.21.1 / 1.21.8 the server config moved to `config/`.)
+* Building requires a **JDK 17** daemon (NeoGradle 6 cannot run on JDK 20+); see `docs/INSTALL.md`.
+* Release jars for all three versions are kept in the local `release/` folder (git-ignored):
+  `git checkout <branch>` then `.\gradlew.bat build`, and copy the jar over.
+
+---
+
 ## Quick start (5 minutes)
 
 1. **Drop your TLS material** into `./ssl/`:
@@ -49,7 +78,9 @@ clickable **[Yes] / [No]** confirmation, and then chat with players in real time
    ```powershell
    .\gradlew.bat build
    ```
-   The jar is written to `build/libs/onlinechat-1.21.1-neoforge-0.0.3-alpha.jar`.
+   Two jars are produced; install the **`-all.jar`**:
+   `build/libs/onlinechat-1.20.1-neoforge-0.0.3-alpha-all.jar`
+   (it carries the embedded `netty-codec-http` — see the version table above).
 3. **Install** it into your `mods/` folder (server and/or client — the web server only
    starts on the logical server side).
 4. **Start Minecraft** (dedicated server or single-player world opened to LAN — both work).
@@ -100,7 +131,7 @@ The prefix text, colour and the whole line format are configurable — see
 `0.0.2-alpha` and newer register the four concrete interaction subclasses instead
 (`RightClickBlock` / `RightClickItem` / `EntityInteract` / `LeftClickBlock`), so the 2FA freeze still
 blocks every interaction without crashing the server. If you see that error, replace the jar with
-`onlinechat-1.21.1-neoforge-0.0.3-alpha.jar` — no config or data migration is needed. These releases also
+`onlinechat-1.20.1-neoforge-0.0.3-alpha-all.jar` — no config or data migration is needed. These releases also
 add archive search, announcements and the web-chat UX improvements listed above.
 
 ---
@@ -135,15 +166,15 @@ add archive search, announcements and the web-chat UX improvements listed above.
 | WebSocket shared across pages (SharedWorker) + smooth in-app page transitions — navigating Chat ⇄ Account never drops the socket or spams connect/disconnect messages | ✅ |
 | Login rate limiting per IP | ✅ |
 | CORS allow-list | ✅ |
-| Zero external runtime dependencies (Netty & Gson come from Minecraft) | ✅ |
+| Zero external runtime dependencies (Netty core & Gson come from Minecraft; netty-codec-http rides inside the `-all.jar`) | ✅ |
 
 ---
 
 ## Requirements
 
-* Minecraft **1.21.1**
-* NeoForge **21.1.233** or newer
-* Java **21**
+* Minecraft **1.20.1**
+* NeoForge **47.1.106** or newer
+* Java **17** (the runtime Minecraft 1.20.1 ships to players; the build also needs a JDK 17 daemon — see [docs/INSTALL.md](docs/INSTALL.md))
 * A TLS certificate (self-signed is fine for LAN testing, Let's Encrypt for public exposure)
 
 ---
@@ -151,13 +182,13 @@ add archive search, announcements and the web-chat UX improvements listed above.
 ## Where things live
 
 ```
-./ssl/                                    # TLS material (input)
-./config/onlinechat-common.toml           # chat bridge settings (created on first run)
-./config/onlinechat-server.toml           # HTTPS + auth + storage + 2FA settings (created on first run)
-./config/onlinechat/web/                  # editable copy of the web UI + hidden .exist marker (created on first run)
-./onlinechat/accounts.json                # web accounts, bindings, 2FA flags (created on first run)
-./onlinechat/token.secret                 # auto-generated HMAC secret (created on first run)
-./onlinechat/chat_history.jsonl           # append-only chat archive (created on first run)
+./ssl/                                       # TLS material (input)
+./config/onlinechat-common.toml              # chat bridge settings (created on first run)
+./world/serverconfig/onlinechat-server.toml  # HTTPS + auth + storage + 2FA (per-world on 1.20.1, created on first run)
+./config/onlinechat/web/                     # editable copy of the web UI + hidden .exist marker (created on first run)
+./onlinechat/accounts.json                   # web accounts, bindings, 2FA flags (created on first run)
+./onlinechat/token.secret                    # auto-generated HMAC secret (created on first run)
+./onlinechat/chat_history.jsonl              # append-only chat archive (created on first run)
 ```
 
 Never commit `./ssl`, `./onlinechat/accounts.json` or `./onlinechat/token.secret` to source control.

@@ -1,0 +1,60 @@
+# Online Chat mod metadata for MC 1.20.1 (NeoForge 47.1.x).
+# The values are literals on this branch (NeoGradle convention: src/main/resources/META-INF/mods.toml).
+
+# The name of the mod loader type to load - for regular FML @Mod mods it should be javafml
+modLoader="javafml" #mandatory
+
+# A version range to match for said mod loader - for NeoForge 1.20.1 this is the FML major version.
+loaderVersion="[47,)" #mandatory
+
+# The license for you mod. This is mandatory metadata and allows for easier comprehension of your redistributive properties.
+license="All Rights Reserved"
+
+# A list of mods - how many allowed here is determined by the individual mod loader
+[[mods]] #mandatory
+
+# The modid of the mod
+modId="onlinechat" #mandatory
+
+# The version number of the mod
+version="0.0.3-alpha" #mandatory
+
+# A display name for the mod
+displayName="Online Chat" #mandatory
+
+# The authors of the mod, displayed in the mod UI (optional)
+authors="Ericlyclyclyc"
+
+# The description text for the mod (multi line!) (#mandatory)
+description='''
+Online Chat — a self-contained HTTPS + WebSocket chat platform embedded in the Minecraft server.
+Web users register, log in and bind to their in-game account with a clickable [Yes]/[No] confirmation.
+In-game chat is bridged to the web and back, with configurable [Web Chat] and [In Game] prefixes and
+optional forwarding of system messages (join, quit, death, advancement).
+TLS is provided by the PEM material in ./ssl (configurable).
+'''
+
+# A dependency - use the . to indicate dependency for a specific modid. Dependencies are optional.
+[[dependencies.onlinechat]] #optional
+    # the modid of the dependency (NeoForge 1.20.1 still identifies itself as "forge")
+    modId="forge" #mandatory
+    # This field is required by FML 47.x even though it has a semantic default.
+    mandatory=true #mandatory
+    # The type of the dependency: "required" requires the mod to exist
+    type="required" #mandatory
+    # The version range of the dependency
+    versionRange="[47.1,)" #mandatory
+    # An ordering relationship for the dependency.
+    ordering="NONE"
+    # Side this dependency is applied on - BOTH, CLIENT, or SERVER
+    side="BOTH"
+
+# Here's another dependency
+[[dependencies.onlinechat]]
+    modId="minecraft"
+    mandatory=true #mandatory
+    type="required"
+    # This version range declares a minimum of the current minecraft version up to but not including the next major version
+    versionRange="[1.20.1,1.20.2)"
+    ordering="NONE"
+    side="BOTH"

@@ -1,64 +1,65 @@
 package net.mcless.dev.onlinechat.config;
 
-import net.neoforged.neoforge.common.ModConfigSpec;
+import net.minecraftforge.common.ForgeConfigSpec;
 
 import java.util.List;
 
 /**
  * Server-side configuration: HTTPS listener, TLS material, authentication and account storage.
- * Stored in {@code config/onlinechat-server.toml} (per-world on integrated servers, global on dedicated servers).
+ * Stored per-world in {@code <level-name>/serverconfig/onlinechat-server.toml} on 1.20.1
+ * (that is also where the dedicated server reads it: {@code world/serverconfig/}).
  */
 public class ServerConfig {
-    private static final ModConfigSpec.Builder BUILDER = new ModConfigSpec.Builder();
+    private static final ForgeConfigSpec.Builder BUILDER = new ForgeConfigSpec.Builder();
 
-    public static final ModConfigSpec.ConfigValue<String> LANGUAGE;
+    public static final ForgeConfigSpec.ConfigValue<String> LANGUAGE;
 
-    public static final ModConfigSpec.BooleanValue WEB_ENABLED;
-    public static final ModConfigSpec.ConfigValue<String> HOST;
-    public static final ModConfigSpec.IntValue PORT;
-    public static final ModConfigSpec.BooleanValue HTTP_ENABLED;
-    public static final ModConfigSpec.IntValue HTTP_PORT;
+    public static final ForgeConfigSpec.BooleanValue WEB_ENABLED;
+    public static final ForgeConfigSpec.ConfigValue<String> HOST;
+    public static final ForgeConfigSpec.IntValue PORT;
+    public static final ForgeConfigSpec.BooleanValue HTTP_ENABLED;
+    public static final ForgeConfigSpec.IntValue HTTP_PORT;
 
-    public static final ModConfigSpec.ConfigValue<String> CERT_DIR;
-    public static final ModConfigSpec.ConfigValue<String> CERT_FILE_NAME;
-    public static final ModConfigSpec.ConfigValue<String> KEY_FILE_NAME;
-    public static final ModConfigSpec.ConfigValue<String> CERT_CHAIN_PATH;
-    public static final ModConfigSpec.ConfigValue<String> PRIVATE_KEY_PATH;
-    public static final ModConfigSpec.ConfigValue<String> PRIVATE_KEY_PASSWORD;
-    public static final ModConfigSpec.BooleanValue REQUIRE_CLIENT_AUTH;
+    public static final ForgeConfigSpec.ConfigValue<String> CERT_DIR;
+    public static final ForgeConfigSpec.ConfigValue<String> CERT_FILE_NAME;
+    public static final ForgeConfigSpec.ConfigValue<String> KEY_FILE_NAME;
+    public static final ForgeConfigSpec.ConfigValue<String> CERT_CHAIN_PATH;
+    public static final ForgeConfigSpec.ConfigValue<String> PRIVATE_KEY_PATH;
+    public static final ForgeConfigSpec.ConfigValue<String> PRIVATE_KEY_PASSWORD;
+    public static final ForgeConfigSpec.BooleanValue REQUIRE_CLIENT_AUTH;
 
-    public static final ModConfigSpec.BooleanValue ALLOW_REGISTRATION;
-    public static final ModConfigSpec.IntValue MIN_PASSWORD_LENGTH;
-    public static final ModConfigSpec.IntValue PBKDF2_ITERATIONS;
-    public static final ModConfigSpec.LongValue TOKEN_TTL_MINUTES;
-    public static final ModConfigSpec.ConfigValue<String> TOKEN_SECRET;
-    public static final ModConfigSpec.IntValue MAX_LOGIN_ATTEMPTS;
-    public static final ModConfigSpec.IntValue LOGIN_COOLDOWN_SECONDS;
+    public static final ForgeConfigSpec.BooleanValue ALLOW_REGISTRATION;
+    public static final ForgeConfigSpec.IntValue MIN_PASSWORD_LENGTH;
+    public static final ForgeConfigSpec.IntValue PBKDF2_ITERATIONS;
+    public static final ForgeConfigSpec.LongValue TOKEN_TTL_MINUTES;
+    public static final ForgeConfigSpec.ConfigValue<String> TOKEN_SECRET;
+    public static final ForgeConfigSpec.IntValue MAX_LOGIN_ATTEMPTS;
+    public static final ForgeConfigSpec.IntValue LOGIN_COOLDOWN_SECONDS;
 
-    public static final ModConfigSpec.IntValue BIND_CODE_TTL_SECONDS;
-    public static final ModConfigSpec.BooleanValue ALLOW_REBIND;
+    public static final ForgeConfigSpec.IntValue BIND_CODE_TTL_SECONDS;
+    public static final ForgeConfigSpec.BooleanValue ALLOW_REBIND;
 
-    public static final ModConfigSpec.ConfigValue<String> ACCOUNTS_FILE;
-    public static final ModConfigSpec.IntValue CHAT_HISTORY_SIZE;
-    public static final ModConfigSpec.IntValue CHAT_PAGE_SIZE;
-    public static final ModConfigSpec.ConfigValue<String> CHAT_LOG_FILE;
-    public static final ModConfigSpec.ConfigValue<String> WEB_DIR;
+    public static final ForgeConfigSpec.ConfigValue<String> ACCOUNTS_FILE;
+    public static final ForgeConfigSpec.IntValue CHAT_HISTORY_SIZE;
+    public static final ForgeConfigSpec.IntValue CHAT_PAGE_SIZE;
+    public static final ForgeConfigSpec.ConfigValue<String> CHAT_LOG_FILE;
+    public static final ForgeConfigSpec.ConfigValue<String> WEB_DIR;
 
-    public static final ModConfigSpec.BooleanValue TWO_FACTOR_ENABLED;
-    public static final ModConfigSpec.ConfigValue<String> TWO_FACTOR_PUBLIC_URL;
-    public static final ModConfigSpec.IntValue TWO_FACTOR_TIMEOUT_SECONDS;
+    public static final ForgeConfigSpec.BooleanValue TWO_FACTOR_ENABLED;
+    public static final ForgeConfigSpec.ConfigValue<String> TWO_FACTOR_PUBLIC_URL;
+    public static final ForgeConfigSpec.IntValue TWO_FACTOR_TIMEOUT_SECONDS;
 
-    public static final ModConfigSpec.ConfigValue<List<? extends String>> ALLOWED_ORIGINS;
+    public static final ForgeConfigSpec.ConfigValue<List<? extends String>> ALLOWED_ORIGINS;
 
-    public static final ModConfigSpec.IntValue MAX_CONNECTIONS_PER_IP;
-    public static final ModConfigSpec.IntValue MAX_CONNECTIONS_TOTAL;
-    public static final ModConfigSpec.IntValue MAX_CHAT_MESSAGES_PER_MINUTE;
-    public static final ModConfigSpec.IntValue REGISTER_ATTEMPTS_PER_HOUR;
-    public static final ModConfigSpec.IntValue BIND_REQUESTS_PER_MINUTE;
+    public static final ForgeConfigSpec.IntValue MAX_CONNECTIONS_PER_IP;
+    public static final ForgeConfigSpec.IntValue MAX_CONNECTIONS_TOTAL;
+    public static final ForgeConfigSpec.IntValue MAX_CHAT_MESSAGES_PER_MINUTE;
+    public static final ForgeConfigSpec.IntValue REGISTER_ATTEMPTS_PER_HOUR;
+    public static final ForgeConfigSpec.IntValue BIND_REQUESTS_PER_MINUTE;
 
-    public static final ModConfigSpec.BooleanValue VERBOSE_LOGGING;
+    public static final ForgeConfigSpec.BooleanValue VERBOSE_LOGGING;
 
-    public static final ModConfigSpec SPEC;
+    public static final ForgeConfigSpec SPEC;
 
     static {
         LANGUAGE = BUILDER
@@ -229,7 +230,6 @@ public class ServerConfig {
                         "Use '*' to allow any origin (not recommended on the public internet).")
                 .defineListAllowEmpty("allowedOrigins",
                         List.of("*"),
-                        () -> "*",
                         o -> o instanceof String);
 
         BUILDER.pop();

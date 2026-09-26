@@ -1,6 +1,6 @@
 package net.mcless.dev.onlinechat.config;
 
-import net.neoforged.neoforge.common.ModConfigSpec;
+import net.minecraftforge.common.ForgeConfigSpec;
 
 import java.util.List;
 
@@ -9,24 +9,24 @@ import java.util.List;
  * Stored in {@code config/onlinechat-common.toml}.
  */
 public class CommonConfig {
-    private static final ModConfigSpec.Builder BUILDER = new ModConfigSpec.Builder();
+    private static final ForgeConfigSpec.Builder BUILDER = new ForgeConfigSpec.Builder();
 
-    public static final ModConfigSpec.BooleanValue BRIDGE_ENABLED;
-    public static final ModConfigSpec.BooleanValue BRIDGE_SYSTEM_MESSAGES;
-    public static final ModConfigSpec.ConfigValue<List<? extends String>> SYSTEM_MESSAGE_KINDS;
-    public static final ModConfigSpec.BooleanValue BRIDGE_JOIN_LEAVE;
+    public static final ForgeConfigSpec.BooleanValue BRIDGE_ENABLED;
+    public static final ForgeConfigSpec.BooleanValue BRIDGE_SYSTEM_MESSAGES;
+    public static final ForgeConfigSpec.ConfigValue<List<? extends String>> SYSTEM_MESSAGE_KINDS;
+    public static final ForgeConfigSpec.BooleanValue BRIDGE_JOIN_LEAVE;
 
-    public static final ModConfigSpec.ConfigValue<String> WEB_PREFIX_TEXT;
-    public static final ModConfigSpec.ConfigValue<String> WEB_PREFIX_COLOR;
-    public static final ModConfigSpec.ConfigValue<String> IN_GAME_PREFIX_TEXT;
-    public static final ModConfigSpec.ConfigValue<String> IN_GAME_PREFIX_COLOR;
-    public static final ModConfigSpec.ConfigValue<String> WEB_PREFIX_COLOR_CSS;
+    public static final ForgeConfigSpec.ConfigValue<String> WEB_PREFIX_TEXT;
+    public static final ForgeConfigSpec.ConfigValue<String> WEB_PREFIX_COLOR;
+    public static final ForgeConfigSpec.ConfigValue<String> IN_GAME_PREFIX_TEXT;
+    public static final ForgeConfigSpec.ConfigValue<String> IN_GAME_PREFIX_COLOR;
+    public static final ForgeConfigSpec.ConfigValue<String> WEB_PREFIX_COLOR_CSS;
 
-    public static final ModConfigSpec.ConfigValue<String> GAME_CHAT_FORMAT;
-    public static final ModConfigSpec.BooleanValue STRIP_FORMATTING;
-    public static final ModConfigSpec.IntValue MAX_WEB_MESSAGE_LENGTH;
+    public static final ForgeConfigSpec.ConfigValue<String> GAME_CHAT_FORMAT;
+    public static final ForgeConfigSpec.BooleanValue STRIP_FORMATTING;
+    public static final ForgeConfigSpec.IntValue MAX_WEB_MESSAGE_LENGTH;
 
-    public static final ModConfigSpec SPEC;
+    public static final ForgeConfigSpec SPEC;
 
     static {
         BRIDGE_ENABLED = BUILDER
@@ -41,7 +41,6 @@ public class CommonConfig {
                 .comment("Which non-player messages should be bridged. Valid values: join, quit, death, advancement.")
                 .defineListAllowEmpty("systemMessageKinds",
                         List.of("join", "quit", "death", "advancement"),
-                        () -> "join",
                         o -> o instanceof String s && List.of("join", "quit", "death", "advancement").contains(s));
 
         BRIDGE_JOIN_LEAVE = BUILDER

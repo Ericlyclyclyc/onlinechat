@@ -16,12 +16,12 @@ import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.MutableComponent;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerPlayer;
-import net.neoforged.bus.api.EventPriority;
-import net.neoforged.bus.api.SubscribeEvent;
-import net.neoforged.neoforge.event.ServerChatEvent;
-import net.neoforged.neoforge.event.entity.living.LivingDeathEvent;
-import net.neoforged.neoforge.event.entity.player.AdvancementEvent;
-import net.neoforged.neoforge.event.entity.player.PlayerEvent;
+import net.minecraftforge.event.ServerChatEvent;
+import net.minecraftforge.event.entity.living.LivingDeathEvent;
+import net.minecraftforge.event.entity.player.AdvancementEvent;
+import net.minecraftforge.event.entity.player.PlayerEvent;
+import net.minecraftforge.eventbus.api.EventPriority;
+import net.minecraftforge.eventbus.api.SubscribeEvent;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -266,9 +266,10 @@ public class ChatBridge {
     public void onAdvancement(AdvancementEvent.AdvancementEarnEvent event) {
         if (!shouldBridge("advancement")) return;
         if (!(event.getEntity() instanceof ServerPlayer player)) return;
-        Component title = event.getAdvancement().value().display()
-                .map(d -> d.getTitle())
-                .orElse(Component.literal(event.getAdvancement().id().toString()));
+        // 1.20.1: getAdvancement() returns the Advancement directly (getDisplay()/getId()).
+        Component title = event.getAdvancement().getDisplay() == null
+                ? Component.literal(event.getAdvancement().getId().toString())
+                : event.getAdvancement().getDisplay().getTitle();
         String text = Lang.tr("onlinechat.bridge.advancement", player.getGameProfile().getName(), title.getString());
         rememberAndBroadcast(new ChatMessage(System.currentTimeMillis(), Kind.SYSTEM,
                 player.getGameProfile().getName(), player.getUUID().toString(),

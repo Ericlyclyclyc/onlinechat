@@ -6,11 +6,9 @@ import net.mcless.dev.onlinechat.account.AccountManager;
 import net.mcless.dev.onlinechat.config.ServerConfig;
 import net.mcless.dev.onlinechat.i18n.Lang;
 import net.minecraft.ChatFormatting;
-import net.minecraft.core.Holder;
 import net.minecraft.network.chat.ClickEvent;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.HoverEvent;
-import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.Entity;
@@ -20,21 +18,19 @@ import net.minecraft.world.entity.ai.attributes.AttributeModifier;
 import net.minecraft.world.entity.ai.attributes.Attributes;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.phys.Vec3;
-import net.neoforged.bus.api.EventPriority;
-import net.neoforged.bus.api.ICancellableEvent;
-import net.neoforged.bus.api.SubscribeEvent;
-import net.neoforged.neoforge.common.util.TriState;
-import net.neoforged.neoforge.event.CommandEvent;
-import net.neoforged.neoforge.event.ServerChatEvent;
-import net.neoforged.neoforge.event.entity.item.ItemTossEvent;
-import net.neoforged.neoforge.event.entity.living.LivingEntityUseItemEvent;
-import net.neoforged.neoforge.event.entity.living.LivingIncomingDamageEvent;
-import net.neoforged.neoforge.event.entity.player.AttackEntityEvent;
-import net.neoforged.neoforge.event.entity.player.ItemEntityPickupEvent;
-import net.neoforged.neoforge.event.entity.player.PlayerEvent;
-import net.neoforged.neoforge.event.entity.player.PlayerInteractEvent;
-import net.neoforged.neoforge.event.level.BlockEvent;
-import net.neoforged.neoforge.event.tick.PlayerTickEvent;
+import net.minecraftforge.event.CommandEvent;
+import net.minecraftforge.event.ServerChatEvent;
+import net.minecraftforge.event.TickEvent;
+import net.minecraftforge.event.entity.item.ItemTossEvent;
+import net.minecraftforge.event.entity.living.LivingDamageEvent;
+import net.minecraftforge.event.entity.living.LivingEntityUseItemEvent;
+import net.minecraftforge.event.entity.player.AttackEntityEvent;
+import net.minecraftforge.event.entity.player.EntityItemPickupEvent;
+import net.minecraftforge.event.entity.player.PlayerEvent;
+import net.minecraftforge.event.entity.player.PlayerInteractEvent;
+import net.minecraftforge.event.level.BlockEvent;
+import net.minecraftforge.eventbus.api.EventPriority;
+import net.minecraftforge.eventbus.api.SubscribeEvent;
 
 import java.security.SecureRandom;
 import java.util.Base64;
@@ -88,11 +84,13 @@ public class TwoFactorGuard {
     public enum Result { OK, INVALID_TOKEN, WRONG_ACCOUNT, UNAVAILABLE }
 
     private static final SecureRandom RANDOM = new SecureRandom();
-    private static final ResourceLocation FREEZE_ID = ResourceLocation.fromNamespaceAndPath(OnlineChat.MODID, "two_factor_freeze");
-    /** Attributes zeroed while frozen. All of them are synced to the client, so the client stops moving by itself. */
-    private static final List<Holder<Attribute>> FROZEN_ATTRIBUTES = List.of(
-            Attributes.MOVEMENT_SPEED, Attributes.FLYING_SPEED, Attributes.JUMP_STRENGTH, Attributes.GRAVITY,
-            Attributes.BLOCK_INTERACTION_RANGE, Attributes.ENTITY_INTERACTION_RANGE, Attributes.BLOCK_BREAK_SPEED);
+    private static final UUID FREEZE_ID = UUID.fromString("3f8d5a1e-9c2b-4e6f-8a7d-1b2c3d4e5f60");
+    private static final AttributeModifier FREEZE_MODIFIER = new AttributeModifier(FREEZE_ID, "two_factor_freeze",
+            -1.0D, AttributeModifier.Operation.MULTIPLY_TOTAL);
+    /** Attributes zeroed while frozen. All of them are synced to the client, so the client stops moving by itself.
+     *  (1.20.1 has no GRAVITY / interaction-range / block-break-speed attributes — those came in 1.20.5.) */
+    private static final List<Attribute> FROZEN_ATTRIBUTES = List.of(
+            Attributes.MOVEMENT_SPEED, Attributes.FLYING_SPEED, Attributes.JUMP_STRENGTH);
     /** Seconds-remaining marks at which the frozen player is reminded (descending order in the array). */
     private static final int[] REMINDERS = {10, 30, 60};
 
@@ -209,8 +207,9 @@ public class TwoFactorGuard {
     }
 
     @SubscribeEvent
-    public void onPlayerTick(PlayerTickEvent.Post event) {
-        if (!(event.getEntity() instanceof ServerPlayer player)) return;
+    public void onPlayerTick(TickEvent.PlayerTickEvent event) {
+        if (event.phase != TickEvent.Phase.END) return;
+        if (!(event.player instanceof ServerPlayer player)) return;
         Pending p = byPlayer.get(player.getUUID());
         if (p == null) return;
         long now = System.currentTimeMillis();
@@ -273,7 +272,7 @@ public class TwoFactorGuard {
     public void onLeftClickBlock(PlayerInteractEvent.LeftClickBlock event) { cancelInteract(event); }
 
     private void cancelInteract(PlayerInteractEvent event) {
-        if (isFrozen(event.getEntity()) && event instanceof ICancellableEvent c) c.setCanceled(true);
+        if (isFrozen(event.getEntity())) event.setCanceled(true);
     }
 
     @SubscribeEvent(priority = EventPriority.HIGHEST)
@@ -296,12 +295,12 @@ public class TwoFactorGuard {
     }
 
     @SubscribeEvent(priority = EventPriority.HIGHEST)
-    public void onPickup(ItemEntityPickupEvent.Pre event) {
-        if (isFrozen(event.getPlayer())) event.setCanPickup(TriState.FALSE);
+    public void onPickup(EntityItemPickupEvent event) {
+        if (isFrozen(event.getEntity())) event.setCanceled(true);
     }
 
     @SubscribeEvent(priority = EventPriority.HIGHEST)
-    public void onDamage(LivingIncomingDamageEvent event) {
+    public void onDamage(LivingDamageEvent event) {
         if (isFrozen(event.getEntity())) event.setCanceled(true);
     }
 
@@ -335,16 +334,16 @@ public class TwoFactorGuard {
     }
 
     private static void freeze(ServerPlayer player) {
-        for (Holder<Attribute> attr : FROZEN_ATTRIBUTES) {
+        for (Attribute attr : FROZEN_ATTRIBUTES) {
             AttributeInstance inst = player.getAttribute(attr);
-            if (inst == null || inst.hasModifier(FREEZE_ID)) continue;
+            if (inst == null || inst.hasModifier(FREEZE_MODIFIER)) continue;
             // -100% of the final value -> exactly 0, whatever base value or other modifiers apply.
-            inst.addTransientModifier(new AttributeModifier(FREEZE_ID, -1.0D, AttributeModifier.Operation.ADD_MULTIPLIED_TOTAL));
+            inst.addTransientModifier(FREEZE_MODIFIER);
         }
     }
 
     private static void unfreeze(ServerPlayer player) {
-        for (Holder<Attribute> attr : FROZEN_ATTRIBUTES) {
+        for (Attribute attr : FROZEN_ATTRIBUTES) {
             AttributeInstance inst = player.getAttribute(attr);
             if (inst != null) inst.removeModifier(FREEZE_ID);
         }

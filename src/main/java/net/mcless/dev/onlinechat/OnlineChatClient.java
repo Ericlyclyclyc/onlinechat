@@ -1,24 +1,20 @@
 package net.mcless.dev.onlinechat;
 
-import net.neoforged.api.distmarker.Dist;
-import net.neoforged.bus.api.SubscribeEvent;
-import net.neoforged.fml.ModContainer;
-import net.neoforged.fml.common.EventBusSubscriber;
-import net.neoforged.fml.common.Mod;
-import net.neoforged.fml.event.lifecycle.FMLClientSetupEvent;
-import net.neoforged.neoforge.client.gui.ConfigurationScreen;
-import net.neoforged.neoforge.client.gui.IConfigScreenFactory;
+import net.minecraftforge.api.distmarker.Dist;
+import net.minecraftforge.api.distmarker.OnlyIn;
+import net.minecraftforge.eventbus.api.SubscribeEvent;
+import net.minecraftforge.fml.common.Mod;
+import net.minecraftforge.fml.event.lifecycle.FMLClientSetupEvent;
 
 /**
- * Client-only entry point. Registers the mod config screen so users can edit the split config files
- * from the Mods menu.
+ * Client-only entry point. On 1.20.1 the shared configuration screen (ConfigurationScreen)
+ * does not exist yet, so this branch only logs the client setup; the config files remain
+ * editable by hand.
  */
-@Mod(value = OnlineChat.MODID, dist = Dist.CLIENT)
-@EventBusSubscriber(modid = OnlineChat.MODID, value = Dist.CLIENT)
+@OnlyIn(Dist.CLIENT)
+@Mod(OnlineChat.MODID)
 public class OnlineChatClient {
-    public OnlineChatClient(ModContainer container) {
-        container.registerExtensionPoint(IConfigScreenFactory.class, ConfigurationScreen::new);
-    }
+    public OnlineChatClient() {}
 
     @SubscribeEvent
     static void onClientSetup(FMLClientSetupEvent event) {

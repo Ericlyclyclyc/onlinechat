@@ -18,23 +18,22 @@ import net.mcless.dev.onlinechat.web.WebAssets;
 import net.mcless.dev.onlinechat.web.WebServer;
 import net.minecraft.ChatFormatting;
 import net.minecraft.server.MinecraftServer;
-import net.neoforged.bus.api.IEventBus;
-import net.neoforged.bus.api.SubscribeEvent;
-import net.neoforged.fml.ModContainer;
-import net.neoforged.fml.common.Mod;
-import net.neoforged.fml.config.ModConfig;
-import net.neoforged.neoforge.common.NeoForge;
-import net.neoforged.neoforge.event.RegisterCommandsEvent;
-import net.neoforged.neoforge.event.server.ServerStartedEvent;
-import net.neoforged.neoforge.event.server.ServerStartingEvent;
-import net.neoforged.neoforge.event.server.ServerStoppingEvent;
+import net.minecraftforge.common.MinecraftForge;
+import net.minecraftforge.event.RegisterCommandsEvent;
+import net.minecraftforge.event.server.ServerStartedEvent;
+import net.minecraftforge.event.server.ServerStartingEvent;
+import net.minecraftforge.event.server.ServerStoppingEvent;
+import net.minecraftforge.eventbus.api.SubscribeEvent;
+import net.minecraftforge.fml.ModLoadingContext;
+import net.minecraftforge.fml.common.Mod;
+import net.minecraftforge.fml.config.ModConfig;
 import org.slf4j.Logger;
 
 import java.nio.file.Path;
 import java.nio.file.Paths;
 
 /**
- * OnlineChat — an embedded HTTPS + WebSocket chat platform for Minecraft 1.21.1 (NeoForge).
+ * OnlineChat — an embedded HTTPS + WebSocket chat platform for Minecraft 1.20.1 (NeoForge).
  * <p>
  * Responsibilities of this class:
  * <ul>
@@ -63,13 +62,13 @@ public class OnlineChat {
     private TwoFactorGuard twoFactor;
     private Path runDirectory;
 
-    public OnlineChat(IEventBus modEventBus, ModContainer modContainer) {
+    public OnlineChat() {
         INSTANCE = this;
 
-        modContainer.registerConfig(ModConfig.Type.COMMON, CommonConfig.SPEC);
-        modContainer.registerConfig(ModConfig.Type.SERVER, ServerConfig.SPEC);
+        ModLoadingContext.get().registerConfig(ModConfig.Type.COMMON, CommonConfig.SPEC);
+        ModLoadingContext.get().registerConfig(ModConfig.Type.SERVER, ServerConfig.SPEC);
 
-        NeoForge.EVENT_BUS.register(this);
+        MinecraftForge.EVENT_BUS.register(this);
 
         LOGGER.info("[OnlineChat] Mod constructed.");
     }
@@ -104,8 +103,8 @@ public class OnlineChat {
         this.twoFactor = new TwoFactorGuard(accounts);
         this.twoFactor.setServer(server);
 
-        NeoForge.EVENT_BUS.register(bridge);
-        NeoForge.EVENT_BUS.register(twoFactor);
+        MinecraftForge.EVENT_BUS.register(bridge);
+        MinecraftForge.EVENT_BUS.register(twoFactor);
 
         this.webAssets = new WebAssets(resolvePath(runDirectory, ServerConfig.WEB_DIR.get()));
         this.webAssets.extractIfNeeded();
@@ -128,11 +127,11 @@ public class OnlineChat {
             webServer = null;
         }
         if (bridge != null) {
-            NeoForge.EVENT_BUS.unregister(bridge);
+            MinecraftForge.EVENT_BUS.unregister(bridge);
             bridge.setServer(null);
         }
         if (twoFactor != null) {
-            NeoForge.EVENT_BUS.unregister(twoFactor);
+            MinecraftForge.EVENT_BUS.unregister(twoFactor);
             twoFactor.setServer(null);
         }
         if (accounts != null) accounts.save();

@@ -7,6 +7,46 @@ most likely to touch.
 
 ---
 
+## Repository structure (branches)
+
+One codebase, one branch per Minecraft generation — the three NeoForge lines differ too
+much for a single jar (1.20.1 still uses `net.minecraftforge` namespaces; the event, config
+and component APIs moved again between 21.1 and 26.1):
+
+| Branch | Minecraft | NeoForge | Loader dep | Build JDK | Toolchain |
+|--------|-----------|----------|-----------|-----------|-----------|
+| `master` | 1.21.1 | 21.1.233+ | `neoforge` | 21 | ModDevGradle 2.0.147 · Gradle 9.2.1 · Mojang mappings |
+| **`mc/1.21.8`** *(this branch)* | 1.21.8 | 26.1.2.109+ | `neoforge` | 25 | ModDevGradle 2.0.147 · Gradle 9.2.1 · Mojang mappings |
+| `mc/1.20.1` | 1.20.1 | 47.1.106+ | `forge` | 17 | NeoGradle 6.0.21 · Gradle 8.1.1 · parchment 2023.09.03 |
+
+Working rules:
+
+* **Never merge build scripts across branches.** `build.gradle`, `gradle.properties`,
+  `gradle/wrapper/*` and `settings.gradle` belong to one toolchain each (ModDevGradle vs
+  NeoGradle 6); cherry-pick only Java / web-asset changes.
+* The **web front-end and most Java code are shared** across branches — a fix like the
+  SharedWorker socket patch is cherry-picked onto every branch verbatim.
+* Version-specific Java divergences are small and isolated (config spec types, event
+  names, attribute names, mods.toml location).
+* Local release jars are kept in the git-ignored `release/` folder:
+  `git checkout <branch>` → `.\gradlew.bat build` → copy the jar to `release/`.
+* CI (`.github/workflows/build.yml`) picks the JDK per branch: 21 (`master`), 21 with
+  toolchain 25 (`mc/1.21.8`), 17 (`mc/1.20.1`).
+
+This branch's extras worth knowing:
+
+* MC 1.21.8 bundles the **complete** Netty 4.2.7 (including `netty-codec-http`), so nothing
+  is embedded and no dev-classpath workaround is needed — all Netty artefacts are plain
+  `compileOnly`.
+* Mojang renamed "1.21.8" to loader version 26.1.2; `minecraft_version_range=[26.1.2,26.2)`,
+  and the loader-range is `[1,)` because 1.21.8's FML reports major version 1.
+* The port renamed the APIs Mojang moved: `ResourceLocation`→`Identifier`, `BlockEvent.BreakEvent`→
+  `BreakBlockEvent`, `ClickEvent`/`HoverEvent` are now interfaces with record implementations,
+  `ServerPlayer.getServer()` is gone, op checks use `Permission.HasCommandLevel(...)`, and
+  `GameProfile` is a record (`name()`/`id()`).
+
+---
+
 ## Project layout
 
 ```
@@ -103,24 +143,22 @@ any pending mutations.
 
 ### Why Netty (and not `com.sun.net.httpserver` or a third-party lib)?
 
-Minecraft already bundles most of Netty 4.1.97.Final (`netty-handler`, `netty-transport`,
-`netty-codec`, …) — except `netty-codec-http`, which contains the HTTP/WebSocket codecs this mod
-needs. Using Netty means:
+Minecraft 1.21.8 bundles the **complete** Netty 4.2.7.Final (`netty-handler`,
+`netty-transport`, `netty-codec`, **`netty-codec-http`**, …) — which contains the HTTP/WebSocket
+codecs this mod needs. Using Netty means:
 
-* **Zero extra runtime dependencies** — `netty-codec-http` is the one artefact shipped inside the
-  mod jar via **JarInJar** (`jarJar(...) { transitive = false }` in `build.gradle`); everything else
-  comes from Minecraft itself, so there are no duplicate Netty classes on the runtime classpath.
+* **Zero extra runtime dependencies, nothing embedded** — every Netty artefact is a plain
+  `compileOnly` in `build.gradle` and comes from Minecraft itself at runtime, so there are
+  no duplicate Netty classes on the runtime classpath and no JarInJar at all on this branch
+  (the 1.21.1 branch embeds `netty-codec-http` 4.1.97; 1.20.1 embeds 4.1.82 in its `-all.jar`).
 * Native support for the WebSocket protocol (`WebSocketServerHandshaker`,
   `TextWebSocketFrame`) and TLS (`SslContextBuilder.forServer(File, File)`).
 * Battle-tested event-loop model, matching Minecraft's own network layer.
 
-The compile classpath needs an explicit `compileOnly` on the Netty artefacts
-(see `build.gradle`) because ModDevGradle does not re-export Minecraft's
-transitive dependencies. At runtime the classes come from Minecraft itself, except
-`netty-codec-http`, which is jarJar'd — and is additionally put on ModDevGradle's
-dev-only `additionalRuntimeClasspath` configuration so `runServer` / `runClient`
-work in the IDE workspace (on MC ≤ 1.21.8 the Gradle run configurations do not
-see jarJar'd artefacts).
+The compile classpath needs the explicit `compileOnly` declarations (see `build.gradle`)
+because ModDevGradle does not re-export Minecraft's transitive dependencies; the same
+classes are present on the dev run classpath because the 1.21.8 userdev artifact ships
+the full Netty.
 
 ### Why stateless HMAC tokens and not sessions?
 
@@ -268,13 +306,22 @@ Upgrading is designed to need no manual migration:
 ## Building and releasing
 
 ```powershell
-.\gradlew.bat build              # produces build/libs/onlinechat-<version>.jar
+.\gradlew.bat build              # produces build/libs/onlinechat-1.21.8-neoforge-<version>.jar
 .\gradlew.bat publish            # publishes to the local ./repo maven (see build.gradle)
 ```
 
 Bump `mod_version` in `gradle.properties` before cutting a release. The version
 string is substituted into `META-INF/neoforge.mods.toml` by the
 `generateModMetadata` task at build time.
+
+Release procedure per version:
+
+1. `git checkout <branch>` (this branch builds 1.21.8).
+2. `.\gradlew.bat build` and verify the E2E suite (`%TEMP%\oc-e2e\server-driver.ps1`
+   locally — HTTP/HTTPS, WebSocket, REST and RCON checks).
+3. Copy `build/libs/onlinechat-1.21.8-neoforge-<version>.jar` into the git-ignored
+   `release/` folder.
+4. Repeat for `master` (1.21.1) and `mc/1.20.1` (on 1.20.1 copy the **`-all.jar`**).
 
 ---
 

@@ -7,13 +7,20 @@
  * unavailable the client falls back to a per-page WebSocket (see common.js OC.Ws).
  *
  * Page → worker messages:
- *   { type: 'send',   payload: {...} }   forward a WebSocket frame
- *   { type: 'resume' }                   a page just logged in: clear the stopped flag and reconnect
- *   { type: 'stop' }                     logout: close the socket and stop reconnecting
+ *   { type: 'send',   ref, payload }   forward a WebSocket frame; the worker answers with
+ *                                      { type:'send_ack', ref, ok } so the page only treats
+ *                                      a message as sent when the socket really accepted it
+ *   { type: 'resume' }                 a page just logged in: clear the stopped flag and reconnect
+ *   { type: 'stop' }                   logout: close the socket and stop reconnecting
  *
  * Worker → page messages: the usual server frames plus
  *   { type: 'ws_status', state: 'connecting'|'ok'|'err'|'closed' }
+ *   { type: 'send_ack', ref, ok }
  * and cached copies of the last auth_ok / history (marked cached: true) for late-attaching pages.
+ *
+ * Every handler body is wrapped in safe() so an unexpected value can never throw an uncaught
+ * exception — an escaping error would fire the worker's 'error' event, which the page treats
+ * as "the worker died" and would spawn a second (duplicate) socket.
  */
 'use strict';
 
@@ -27,9 +34,13 @@ let snapshot = [];              // rolling recent messages for late-attaching pa
 let snapshotHasMore = false;
 const SNAPSHOT_CAP = 200;
 
+function safe(fn) {
+    try { fn(); } catch (_) { /* never let an exception escape into the worker scope */ }
+}
+
 function broadcast(msg) {
     for (const port of ports) {
-        try { port.postMessage(msg); } catch (_) { /* port closed */ }
+        try { port.postMessage(msg); } catch (_) { ports.delete(port); }
     }
 }
 
@@ -51,27 +62,22 @@ function connect() {
         scheduleReconnect();
         return;
     }
-    ws.addEventListener('open', () => {
-        reconnectDelay = 1000;
-    });
-    ws.addEventListener('message', (ev) => {
+    ws.addEventListener('open', () => safe(() => { reconnectDelay = 1000; }));
+    ws.addEventListener('message', (ev) => safe(() => {
         let msg;
         try { msg = JSON.parse(ev.data); } catch (_) { return; }
         onFrame(msg);
-    });
-    ws.addEventListener('close', () => {
+    }));
+    ws.addEventListener('close', () => safe(() => {
         broadcast({ type: 'ws_status', state: stopped ? 'closed' : 'err' });
         if (!stopped) scheduleReconnect();
-    });
+    }));
     ws.addEventListener('error', () => { /* a close event follows */ });
 }
 
 function scheduleReconnect() {
     if (stopped || reconnectTimer) return;
-    reconnectTimer = setTimeout(() => {
-        reconnectTimer = null;
-        connect();
-    }, reconnectDelay);
+    reconnectTimer = setTimeout(() => { reconnectTimer = null; connect(); }, reconnectDelay);
     reconnectDelay = Math.min(reconnectDelay * 2, 15000);
 }
 
@@ -128,10 +134,12 @@ function onFrame(msg) {
         case 'error':
             broadcast(msg);
             break;
+        default:
+            break; // unknown server frames are ignored
     }
 }
 
-self.addEventListener('connect', (e) => {
+self.addEventListener('connect', (e) => safe(() => {
     const port = e.ports[0];
     ports.add(port);
 
@@ -146,12 +154,11 @@ self.addEventListener('connect', (e) => {
         port.postMessage({ type: 'ws_status', state });
     }
 
-    port.addEventListener('message', (ev) => {
+    port.addEventListener('message', (ev) => safe(() => {
         const d = ev.data || {};
         if (d.type === 'send' && d.payload) {
-            if (!sendFrame(d.payload)) {
-                port.postMessage({ type: 'error', error: 'not connected' });
-            }
+            // Acknowledge immediately so the page knows whether the frame really left.
+            port.postMessage({ type: 'send_ack', ref: d.ref, ok: sendFrame(d.payload) });
         } else if (d.type === 'resume') {
             // A page just logged in (fresh cookie): allow reconnecting again.
             stopped = false;
@@ -166,11 +173,11 @@ self.addEventListener('connect', (e) => {
             if (reconnectTimer) { clearTimeout(reconnectTimer); reconnectTimer = null; }
             if (ws) { try { ws.close(); } catch (_) {} }
         }
-    });
+    }));
     port.start();
 
     if (!ws && !stopped) connect();
-});
+}));
 
 // Keepalive so proxies / the 120 s server read-idle timeout never drop the socket.
-setInterval(() => sendFrame({ type: 'ping' }), 50000);
+setInterval(() => safe(() => sendFrame({ type: 'ping' })), 50000);

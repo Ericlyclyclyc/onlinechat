@@ -211,6 +211,8 @@
         _reconnectTimer: null,
         _stopped: false,
         _pingTimer: null,
+        _ackSeq: 0,
+        _pendingAcks: new Map(), // send ref -> resolve(ok)
 
         _init() {
             if (this.mode !== 'none') return;
@@ -221,6 +223,8 @@
                     this.port.addEventListener('message', (ev) => this._dispatch(ev.data));
                     this.port.start();
                     this.mode = 'shared';
+                    // A worker 'error' (uncaught exception / load failure) must never leave two
+                    // sockets alive: terminate the worker before falling back to a direct one.
                     this.worker.addEventListener('error', () => this._fallbackDirect());
                     return;
                 } catch (_) { /* fall through to a direct socket */ }
@@ -229,9 +233,13 @@
         },
 
         _fallbackDirect() {
+            if (this.worker) { try { this.worker.terminate(); } catch (_) {} }
             if (this.port) { try { this.port.close(); } catch (_) {} }
             this.worker = null;
             this.port = null;
+            // Fail any outstanding send acks — their frames never left this page.
+            for (const resolve of this._pendingAcks.values()) resolve(false);
+            this._pendingAcks.clear();
             this._startDirect();
         },
 
@@ -274,6 +282,11 @@
 
         _dispatch(msg) {
             if (!msg) return;
+            if (msg.type === 'send_ack') {
+                const resolve = this._pendingAcks.get(msg.ref);
+                if (resolve) { this._pendingAcks.delete(msg.ref); resolve(!!msg.ok); }
+                return;
+            }
             if (msg.type === 'ws_status') this.status = msg.state;
             this._emit(msg.type, msg);
         },
@@ -295,16 +308,34 @@
             if (set) set.delete(fn);
         },
 
-        /** Forwards a WebSocket frame; false when the transport is not connected right now. */
+        /**
+         * Forwards a WebSocket frame. Returns a Promise that resolves to true only when the
+         * transport really accepted the frame (in shared mode the worker acknowledges the send,
+         * so a dropped socket never swallows the message silently).
+         */
         send(payload) {
             this._init();
             if (this.mode === 'shared' && this.port) {
-                try { this.port.postMessage({ type: 'send', payload }); return true; } catch (_) { return false; }
+                const ref = ++this._ackSeq;
+                return new Promise((resolve) => {
+                    const timer = setTimeout(() => {
+                        this._pendingAcks.delete(ref);
+                        resolve(false);
+                    }, 3000);
+                    this._pendingAcks.set(ref, (ok) => { clearTimeout(timer); resolve(ok); });
+                    try {
+                        this.port.postMessage({ type: 'send', ref, payload });
+                    } catch (_) {
+                        clearTimeout(timer);
+                        this._pendingAcks.delete(ref);
+                        resolve(false);
+                    }
+                });
             }
             if (this.mode === 'direct' && this.socket && this.socket.readyState === WebSocket.OPEN) {
-                try { this.socket.send(JSON.stringify(payload)); return true; } catch (_) { return false; }
+                try { this.socket.send(JSON.stringify(payload)); return Promise.resolve(true); } catch (_) { return Promise.resolve(false); }
             }
-            return false;
+            return Promise.resolve(false);
         },
 
         /** After a successful login the cookie changed — tell the shared worker to reconnect. */

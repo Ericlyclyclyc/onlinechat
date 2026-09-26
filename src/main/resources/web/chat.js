@@ -401,11 +401,14 @@
     const draft = sessionStorage.getItem(DRAFT_KEY);
     if (draft) input.value = draft;
 
-    composer.addEventListener('submit', (e) => {
+    composer.addEventListener('submit', async (e) => {
         e.preventDefault();
         const text = input.value.trim();
         if (!text) return;
-        if (!OC.Ws.send({ type: 'chat', text })) {
+        // OC.Ws.send resolves to true only when the transport really accepted the frame
+        // (the shared worker acknowledges). On failure keep the text so nothing is lost.
+        const sent = await OC.Ws.send({ type: 'chat', text });
+        if (!sent) {
             OC.Toast.warn(OC.I18N.t('chat.disconnected'));
             return;
         }

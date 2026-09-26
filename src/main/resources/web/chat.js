@@ -204,8 +204,7 @@
         return entry;
     }
 
-    function appendMessage(m, forceScroll, flags) {
-        flags = flags || {};
+    function appendMessage(m, forceScroll) {
         const stick = forceScroll === true || isNearBottom();
         const prev = lastGroup;
         const divider = !prev || dayOf(m.ts) !== prev.day ? OC.fmtDate(m.ts) : null;
@@ -215,7 +214,7 @@
         trimTop();
         if (stick) scrollToBottom(false);
         updateScrollBtn();
-        if (!flags.local) maybeNotify(m);
+        maybeNotify(m);
     }
 
     // Runaway guard for a very long-lived tab: drop the oldest rendered nodes, compensating scrollTop so
@@ -406,17 +405,17 @@
         const text = input.value.trim();
         if (!text) return;
         // OC.Ws.send resolves to true only when the transport really accepted the frame
-        // (the shared worker acknowledges). On failure keep the text so nothing is lost.
+        // (the shared worker acknowledges synchronously). On failure keep the text so
+        // nothing is lost.
         const sent = await OC.Ws.send({ type: 'chat', text });
         if (!sent) {
             OC.Toast.warn(OC.I18N.t('chat.disconnected'));
             return;
         }
-        // Echo locally so the sender sees their message immediately (and jump to the bottom).
-        appendMessage({
-            type: 'web', ts: Date.now(),
-            author: me.mcName || me.username, text,
-        }, true, { local: true });
+        // NO local echo. The server archives the message and pushes the authoritative
+        // 'web' frame back to every session — including this one — and that echo is what
+        // renders it here. Own messages can therefore never be shown-but-unsent (or
+        // silently swallowed) the way the old optimistic echo could.
         input.value = '';
         sessionStorage.removeItem(DRAFT_KEY);
         closeMention();

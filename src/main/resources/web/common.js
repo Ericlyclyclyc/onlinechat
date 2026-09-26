@@ -199,7 +199,9 @@
     // ───────────────────────────── Shared WebSocket transport ─────────────────────────────
     // One authenticated WebSocket per origin lives inside a SharedWorker (ws-shared.js), so
     // in-app navigation (chat.html ⇄ account.html) never drops or re-creates the socket.
-    // Falls back to a per-page WebSocket where SharedWorker is unavailable.
+    // Falls back to a per-page WebSocket where SharedWorker is unavailable. The transport
+    // only moves frames: pages render exclusively what the SERVER sends (server echo +
+    // history replay), so no frame is ever invented locally.
     const Ws = {
         mode: 'none',            // 'shared' | 'direct'
         worker: null,
@@ -268,6 +270,7 @@
                 this._dispatch(m);
             });
             ws.addEventListener('close', () => {
+                this.socket = null;
                 this._emit('ws_status', { type: 'ws_status', state: this._stopped ? 'closed' : 'err' });
                 if (!this._stopped) {
                     this._reconnectTimer = setTimeout(() => {
@@ -298,9 +301,12 @@
 
         /** Registers a handler for a server frame type (or 'ws_status'). Returns an unsubscribe fn. */
         on(type, fn) {
-            this._init();
+            // Register BEFORE initialising: the shared worker may push cached frames
+            // (auth_ok / history) back-to-back with the connection, and a handler that is
+            // added after _init() could theoretically miss the first frames.
             if (!this.handlers.has(type)) this.handlers.set(type, new Set());
             this.handlers.get(type).add(fn);
+            this._init();
             return () => this.off(type, fn);
         },
         off(type, fn) {
@@ -309,9 +315,10 @@
         },
 
         /**
-         * Forwards a WebSocket frame. Returns a Promise that resolves to true only when the
-         * transport really accepted the frame (in shared mode the worker acknowledges the send,
-         * so a dropped socket never swallows the message silently).
+         * Forwards a WebSocket frame. Resolves to true only when the transport really accepted
+         * the frame (the worker acknowledges synchronously, and the direct socket reports the
+         * send itself). Callers NEVER render from this promise — the server echo is the only
+         * thing that renders a message.
          */
         send(payload) {
             this._init();

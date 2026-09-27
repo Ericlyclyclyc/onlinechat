@@ -37,13 +37,14 @@
 
 ## 支持的版本与仓库结构
 
-本模组支持三个 Minecraft 世代，**每个版本一个分支** —— 单个 jar 无法覆盖全部三个版本
-（1.20.1 仍使用 `net.minecraftforge` 命名空间，且 NeoForge 21.1 与 26.1 之间的事件、配置与组件 API 各不相同）：
+本模组支持四个 Minecraft 世代，**每个版本一个分支** —— 单个 jar 无法覆盖全部版本
+（1.20.1 仍使用 `net.minecraftforge` 命名空间，各 NeoForge 线之间的事件、配置与组件 API 各不相同）：
 
 | 分支 | Minecraft | NeoForge | 加载器依赖 | 构建 JDK | 构建工具链 | 需要安装的 jar |
 |------|-----------|----------|-----------|---------|-----------|----------------|
 | **`master`** *（本分支）* | 1.21.1 | 21.1.233+ | `neoforge` | 21 | ModDevGradle 2.0.147 · Gradle 9.2.1 | `onlinechat-1.21.1-neoforge-<版本>.jar` |
-| `mc/1.21.8` | 1.21.8 | 26.1.2.109+ | `neoforge` | 25 | ModDevGradle 2.0.147 · Gradle 9.2.1 | `onlinechat-1.21.8-neoforge-<版本>.jar` |
+| `mc/1.21.8` | 1.21.8 | 21.8.54+ | `neoforge` | 21 | ModDevGradle 2.0.147 · Gradle 9.2.1 | `onlinechat-1.21.8-neoforge-<版本>.jar` |
+| `mc/26.1.2` | 26.1.2 | 26.1.2.111+ | `neoforge` | 25 | ModDevGradle 2.0.147 · Gradle 9.2.1 | `onlinechat-26.1.2-neoforge-<版本>.jar` |
 | `mc/1.20.1` | 1.20.1 | 47.1.106+ | `forge` | 17 | NeoGradle 6.0.21 · Gradle 8.1.1 | `onlinechat-1.20.1-neoforge-<版本>-all.jar` |
 
 **1.21.1** 分支专属说明：
@@ -53,7 +54,7 @@
 * 1.21.1 的服务端配置位于 `config/onlinechat-server.toml`
   （1.20.1 分支则每世界一份，位于 `world/serverconfig/`）。
 * `mc/1.20.1` 分支的构建会额外产出一个 `-all.jar` —— 在那边请安装 `-all.jar`。
-* 三个版本的发布 jar 都保存在本地的 `release/` 目录（已被 git 忽略）：
+* 各版本的发布 jar 都保存在本地的 `release/` 目录（已被 git 忽略）：
   `git checkout <分支>` 后执行 `.\gradlew.bat build`，再把 jar 复制过去即可。
 
 ---

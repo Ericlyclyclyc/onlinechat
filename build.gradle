@@ -11,7 +11,7 @@ group = mod_group_id
 
 base {
     // NeoForge-style artifact name: <modid>-<mcversion>-<loader>-<modversion>.jar
-    // e.g. onlinechat-1.20.1-neoforge-0.0.3-alpha.jar
+    // e.g. onlinechat-1.20.1-neoforge-0.1.1-beta.jar
     archivesName = "${mod_id}-${minecraft_version}-neoforge"
 }
 

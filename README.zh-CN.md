@@ -71,7 +71,7 @@
    ```powershell
    .\gradlew.bat build
    ```
-   jar 会输出到 `build/libs/onlinechat-1.21.1-neoforge-0.0.3-alpha.jar`。
+   jar 会输出到 `build/libs/onlinechat-1.21.1-neoforge-0.1.1-beta.jar`。
 3. **安装** 到你的 `mods/` 文件夹（服务端和/或客户端 —— Web 服务器只在逻辑服务端一侧启动）。
 4. **启动 Minecraft**（专用服务器，或开放到局域网的单人世界 —— 两者皆可）。
    Web 服务器默认监听 `https://0.0.0.0:8443/`。
@@ -120,7 +120,7 @@
 
 `0.0.2-alpha` 及更高版本改为注册四个具体的交互子类（`RightClickBlock` / `RightClickItem` /
 `EntityInteract` / `LeftClickBlock`），2FA 冻结依然能拦截所有交互，但不会再让服务器崩溃。如果你遇到
-该报错，把 jar 换成 `onlinechat-1.21.1-neoforge-0.0.3-alpha.jar` 即可，无需迁移任何配置或数据。
+该报错，把 jar 换成 `onlinechat-1.21.1-neoforge-0.1.1-beta.jar` 即可，无需迁移任何配置或数据。
 这些版本还新增了归档搜索、公告以及上面列出的网页聊天体验改进。
 
 ---

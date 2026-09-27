@@ -187,5 +187,5 @@
 
 ## 许可
 
-底层 NeoForge MDK 模板的许可见 [TEMPLATE_LICENSE.txt](TEMPLATE_LICENSE.txt)。
-本仓库中的 Online Chat 源码按现状（as-is）提供，供个人及商业服务器使用。
+Online Chat 采用 **MIT License** 开源 —— 见 [LICENSE](LICENSE)。
+[TEMPLATE_LICENSE.txt](TEMPLATE_LICENSE.txt) 记录本仓库所基于的 NeoForge MDK 模板的许可。

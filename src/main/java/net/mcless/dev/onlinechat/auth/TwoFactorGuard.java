@@ -10,7 +10,7 @@ import net.minecraft.core.Holder;
 import net.minecraft.network.chat.ClickEvent;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.HoverEvent;
-import net.minecraft.resources.Identifier;
+import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.Entity;
@@ -87,7 +87,7 @@ public class TwoFactorGuard {
     public enum Result { OK, INVALID_TOKEN, WRONG_ACCOUNT, UNAVAILABLE }
 
     private static final SecureRandom RANDOM = new SecureRandom();
-    private static final Identifier FREEZE_ID = Identifier.fromNamespaceAndPath(OnlineChat.MODID, "two_factor_freeze");
+    private static final ResourceLocation FREEZE_ID = ResourceLocation.fromNamespaceAndPath(OnlineChat.MODID, "two_factor_freeze");
     /** Attributes zeroed while frozen. All of them are synced to the client, so the client stops moving by itself. */
     private static final List<Holder<Attribute>> FROZEN_ATTRIBUTES = List.of(
             Attributes.MOVEMENT_SPEED, Attributes.FLYING_SPEED, Attributes.JUMP_STRENGTH, Attributes.GRAVITY,
@@ -177,13 +177,13 @@ public class TwoFactorGuard {
 
         OnlineChat runtime = OnlineChat.instance();
         if (runtime == null || runtime.getWebServer() == null || !runtime.getWebServer().isRunning()) {
-            OnlineChat.LOGGER.warn("[OnlineChat] {} has 2FA enabled but the web server is not running; skipping the check", player.getGameProfile().name());
+            OnlineChat.LOGGER.warn("[OnlineChat] {} has 2FA enabled but the web server is not running; skipping the check", player.getGameProfile().getName());
             return;
         }
 
         String token = newToken();
         long deadline = System.currentTimeMillis() + ServerConfig.TWO_FACTOR_TIMEOUT_SECONDS.get() * 1000L;
-        Pending p = new Pending(player.getUUID(), player.getGameProfile().name(), acc.get().getUsername(),
+        Pending p = new Pending(player.getUUID(), player.getGameProfile().getName(), acc.get().getUsername(),
                 token, deadline, player.position());
         byPlayer.put(p.playerUuid, p);
         byToken.put(token, p);
@@ -281,7 +281,7 @@ public class TwoFactorGuard {
     }
 
     @SubscribeEvent(priority = EventPriority.HIGHEST)
-    public void onBreak(net.neoforged.neoforge.event.level.block.BreakBlockEvent event) {
+    public void onBreak(net.neoforged.neoforge.event.level.BlockEvent.BreakEvent event) {
         if (isFrozen(event.getPlayer())) event.setCanceled(true);
     }
 

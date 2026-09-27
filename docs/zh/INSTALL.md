@@ -12,9 +12,9 @@
 
 | 依赖 | 版本 |
 |------|------|
-| JDK | 25（Microsoft OpenJDK、Temurin、Adoptium 均可） |
+| JDK | 21（Microsoft OpenJDK、Temurin、Adoptium 均可）—— 运行时与构建均用 21 |
 | Minecraft | 1.21.8 |
-| NeoForge | 26.1 或更新 |
+| NeoForge | 21.8 或更新（21.8.x 线 —— 26.1.2.x 是另一个更晚的游戏版本） |
 | Gradle | 由 wrapper 提供 —— 无需在系统中单独安装 |
 
 Windows PowerShell、macOS Terminal 与 Linux bash 均受支持。

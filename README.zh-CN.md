@@ -16,7 +16,7 @@
 * 🛡️ 可选的 **进服两步验证（2FA）**：开启的玩家进服后被冻结，直到在已登录其绑定网页账号的浏览器中确认。
 * 🌐 所有游戏内文本在 **服务端** 翻译（`language = "en_us" | "zh_cn"`）—— 原版客户端也能看到中文。
 * 🧩 网页前端首次启动时释放到 `config/onlinechat/web/`，无需重新构建 jar 即可自定义。
-* 🚫 零额外运行时依赖 —— MC 1.21.8 自带完整的 Netty 4.2.7（含 netty-codec-http）与 Gson，无需内置或安装任何东西。
+* 🚫 零额外运行时依赖 —— Netty 核心 4.1.118 与 Gson 来自 Minecraft 自身；1.21.8 缺的那一个模块（`netty-codec-http`）通过 JarInJar 内置在 jar 中。
 
 ---
 
@@ -43,15 +43,15 @@
 | 分支 | Minecraft | NeoForge | 加载器依赖 | 构建 JDK | 构建工具链 | 需要安装的 jar |
 |------|-----------|----------|-----------|---------|-----------|----------------|
 | `master` | 1.21.1 | 21.1.233+ | `neoforge` | 21 | ModDevGradle 2.0.147 · Gradle 9.2.1 | `onlinechat-1.21.1-neoforge-<版本>.jar` |
-| **`mc/1.21.8`** *（本分支）* | 1.21.8 | 26.1.2.109+ | `neoforge` | 25 | ModDevGradle 2.0.147 · Gradle 9.2.1 | `onlinechat-1.21.8-neoforge-<版本>.jar` |
+| **`mc/1.21.8`** *（本分支）* | 1.21.8 | 21.8.54+ | `neoforge` | 21 | ModDevGradle 2.0.147 · Gradle 9.2.1 | `onlinechat-1.21.8-neoforge-<版本>.jar` |
 | `mc/1.20.1` | 1.20.1 | 47.1.106+ | `forge` | 17 | NeoGradle 6.0.21 · Gradle 8.1.1 | `onlinechat-1.20.1-neoforge-<版本>-all.jar` |
 
 **1.21.8** 分支专属说明：
 
-* MC 1.21.8 自带**完整**的 Netty 4.2.7 —— 包括 `netty-codec-http` —— 因此本分支
-  不内置任何东西，也无需运行时变通方案。
-* Mojang 把 "1.21.8" 重命名为加载器版本 **26.1.2**，这就是 `gradle.properties` 中
-  `minecraft_version_range=[26.1.2,26.2)` 的由来。
+* MC 1.21.8 自带 Netty **4.1.118 但不含 `netty-codec-http`**，因此本分支通过 JarInJar
+  把它内置进 jar（与 `master` 相同的做法）—— 不打包任何其他东西。
+* 对应 MC 1.21.8 的 NeoForge 线是 **21.8.x**（`minecraft_version_range=[1.21.8,1.21.9)`）。
+  切勿与 *26.1.2* 线混淆 —— 那是另一个更晚的游戏版本（NeoForge 26.1.2.x，仅支持 Java 25）。
 * `mc/1.20.1` 分支的构建会额外产出一个 `-all.jar` —— 在那边请安装 `-all.jar`。
 * 三个版本的发布 jar 都保存在本地的 `release/` 目录（已被 git 忽略）：
   `git checkout <分支>` 后执行 `.\gradlew.bat build`，再把 jar 复制过去即可。
@@ -162,8 +162,8 @@
 ## 环境要求
 
 * Minecraft **1.21.8**
-* NeoForge **26.1** 或更新
-* Java **25**
+* NeoForge **21.8** 或更新（21.8.x 线 —— 26.1.2.x 是另一个更晚的游戏版本）
+* Java **21**（运行时与构建均用 21 —— 21.8.x 整条线都是 Java 21）
 * 一份 TLS 证书（自签名证书适用于局域网测试，公开暴露请用 Let's Encrypt）
 
 ---

@@ -19,8 +19,6 @@ import net.minecraft.network.chat.HoverEvent;
 import net.minecraft.network.chat.MutableComponent;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
-import net.minecraft.server.permissions.Permission;
-import net.minecraft.server.permissions.PermissionLevel;
 
 import java.util.Comparator;
 import java.util.LinkedHashMap;
@@ -43,9 +41,9 @@ import java.util.Optional;
  */
 public class OnlineChatCommand {
 
-    // MC 1.21.8 replaced the numeric op level with a permission set; command level 2 ≈ GAMEMASTERS.
+    // MC 1.21.8 still uses the numeric op-level model (permission sets arrived in 26.1).
     private static boolean hasOpLevel(CommandSourceStack src) {
-        return src.permissions().hasPermission(new Permission.HasCommandLevel(PermissionLevel.GAMEMASTERS));
+        return src.hasPermission(2);
     }
 
     public static void register(CommandDispatcher<CommandSourceStack> dispatcher) {

@@ -37,8 +37,9 @@ base {
     archivesName = "${mod_id}-${minecraft_version}-neoforge"
 }
 
-// MC 1.21.8 ships Java 25 class files, so the toolchain must be 25 to compile against them.
-java.toolchain.languageVersion = JavaLanguageVersion.of(25)
+// NeoForge 21.8.x (the real MC 1.21.8 line) ships Java 21 class files, so a plain
+// JDK 21 toolchain compiles natively — no release/source-target workarounds needed.
+java.toolchain.languageVersion = JavaLanguageVersion.of(21)
 
 neoForge {
     // Specify the version of NeoForge to use.
@@ -116,15 +117,18 @@ configurations {
 }
 
 dependencies {
-    // MC 1.21.8 bundles the complete Netty 4.2.7.Final — including netty-codec-http — so every
-    // module is provided at runtime by Minecraft itself and only needs compileOnly visibility.
-    // Nothing is shaded into the mod jar.
-    compileOnly 'io.netty:netty-buffer:4.2.7.Final'
-    compileOnly 'io.netty:netty-common:4.2.7.Final'
-    compileOnly 'io.netty:netty-transport:4.2.7.Final'
-    compileOnly 'io.netty:netty-handler:4.2.7.Final'
-    compileOnly 'io.netty:netty-codec:4.2.7.Final'
-    compileOnly 'io.netty:netty-codec-http:4.2.7.Final'
+    // MC 1.21.8 bundles Netty 4.1.118.Final — but NOT netty-codec-http, which contains the
+    // HTTP/WebSocket codecs this mod needs. The core modules are compileOnly (provided by
+    // Minecraft at runtime); netty-codec-http is embedded via JarInJar, exactly like master.
+    compileOnly 'io.netty:netty-buffer:4.1.118.Final'
+    compileOnly 'io.netty:netty-common:4.1.118.Final'
+    compileOnly 'io.netty:netty-transport:4.1.118.Final'
+    compileOnly 'io.netty:netty-handler:4.1.118.Final'
+    compileOnly 'io.netty:netty-codec:4.1.118.Final'
+    compileOnly 'io.netty:netty-codec-http:4.1.118.Final'
+    jarJar('io.netty:netty-codec-http:4.1.118.Final')
+    // Dev-only: ModDevGradle run configs do not see jarJar'd artefacts.
+    additionalRuntimeClasspath 'io.netty:netty-codec-http:4.1.118.Final'
 
     // Example optional mod dependency with JEI
     // The JEI API is declared for compile time use, while the full JEI artifact is used at runtime

@@ -13,9 +13,9 @@ version table in [README.md](../README.md).
 
 | Requirement | Version |
 |-------------|---------|
-| JDK | 25 (Microsoft OpenJDK, Temurin, Adoptium all work) |
+| JDK | 21 (Microsoft OpenJDK, Temurin, Adoptium all work) — runtime and build |
 | Minecraft | 1.21.8 |
-| NeoForge | 26.1 or newer |
+| NeoForge | 21.8 or newer (the 21.8.x line — 26.1.2.x is a different, later game release) |
 | Gradle | Provided by the wrapper — no system install needed |
 
 Windows PowerShell, macOS Terminal and Linux bash are all supported.

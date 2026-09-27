@@ -14,7 +14,7 @@
 | 分支 | Minecraft | NeoForge | 加载器依赖 | 构建 JDK | 工具链 |
 |------|-----------|----------|-----------|---------|--------|
 | `master` | 1.21.1 | 21.1.233+ | `neoforge` | 21 | ModDevGradle 2.0.147 · Gradle 9.2.1 · Mojang 映射 |
-| **`mc/1.21.8`** *（本分支）* | 1.21.8 | 26.1.2.109+ | `neoforge` | 25 | ModDevGradle 2.0.147 · Gradle 9.2.1 · Mojang 映射 |
+| **`mc/1.21.8`** *（本分支）* | 1.21.8 | 21.8.54+ | `neoforge` | 21 | ModDevGradle 2.0.147 · Gradle 9.2.1 · Mojang 映射 |
 | `mc/1.20.1` | 1.20.1 | 47.1.106+ | `forge` | 17 | NeoGradle 6.0.21 · Gradle 8.1.1 · parchment 2023.09.03 |
 
 协作规则：
@@ -27,19 +27,24 @@
 * 版本相关的 Java 差异很小且彼此隔离（配置 spec 类型、事件名、属性名、mods.toml 位置）。
 * 本地发布 jar 放在被 git 忽略的 `release/` 目录：
   `git checkout <分支>` → `.\gradlew.bat build` → 把 jar 复制到 `release/`。
-* CI（`.github/workflows/build.yml`）按分支选择 JDK：21（`master`）、21 + 工具链 25（`mc/1.21.8`）、
+* CI（`.github/workflows/build.yml`）按分支选择 JDK：21（`master`）、21（`mc/1.21.8`）、
   17（`mc/1.20.1`）。
 
 本分支值得注意的差异：
 
-* MC 1.21.8 自带**完整**的 Netty 4.2.7（包括 `netty-codec-http`），因此什么都不用内置，
-  也无需开发期类路径变通方案 —— 所有 Netty 构件都是普通的 `compileOnly`。
-* Mojang 把 "1.21.8" 重命名为加载器版本 26.1.2；`minecraft_version_range=[26.1.2,26.2)`，
-  加载器范围为 `[1,)`（1.21.8 的 FML 报告的主版本号是 1）。
-* 移植时适配了 Mojang 移动过的 API：`ResourceLocation`→`Identifier`、
-  `BlockEvent.BreakEvent`→`BreakBlockEvent`、`ClickEvent`/`HoverEvent` 现在是带 record
-  实现的接口、`ServerPlayer.getServer()` 已移除、OP 检查改用
-  `Permission.HasCommandLevel(...)`、`GameProfile` 是 record（`name()`/`id()`）。
+* MC 1.21.8 自带 Netty **4.1.118 但不含 `netty-codec-http`** —— 核心模块用 `compileOnly`，
+  `netty-codec-http` 通过 JarInJar 内置（并用 `additionalRuntimeClasspath` 供开发运行
+  使用），与 `master` 完全一致。
+* 对应 MC 1.21.8 的 NeoForge 线是 **21.8.x**（`neo_version=21.8.54`、
+  `minecraft_version_range=[1.21.8,1.21.9)`、`loader_version_range=[9,)` —— FML 9）。
+  **26.1.2.x 线是另一个更晚的游戏版本**（2026-04，仅支持 Java 25）；游戏版本 id 不同
+  （1.21.8 vs 26.1.2），模组在那条线上会被拒绝加载。
+* **Java 21 端到端：** 21.8.x 整条线都是 Java 21 字节码，直接
+  `java.toolchain.languageVersion = 21` 原生编译 —— 无需任何 release/source-target 变通。
+* MC 1.21.8 早于 26.1 的 API 重命名，因此这里的代码使用旧名称：`ResourceLocation`
+  （没有 `Identifier`）、`GameProfile.getName()`（还不是 record）、
+  `CommandSourceStack.hasPermission(2)`（还没有权限集）与 `BlockEvent.BreakEvent`
+  （没有 `BreakBlockEvent`）。1.21.1 / 1.20.1 分支共享同样的旧 API 面貌。
 
 ---
 
@@ -138,21 +143,17 @@ WebServer.start()
 
 ### 为什么用 Netty（而不是 `com.sun.net.httpserver` 或第三方库）？
 
-Minecraft 1.21.8 捆绑了**完整**的 Netty 4.2.7.Final（`netty-handler`、`netty-transport`、
-`netty-codec`、**`netty-codec-http`**……），其中包含本模组所需的 HTTP/WebSocket 编解码器。
-使用 Netty 意味着：
+Minecraft 1.21.8 捆绑了 Netty 4.1.118.Final（`netty-handler`、`netty-transport`、
+`netty-codec`……），但**不含**本模组所需的 HTTP/WebSocket 编解码器所在的
+`netty-codec-http`。使用 Netty 意味着：
 
-* **零额外运行时依赖，什么都不用内置** —— 每个 Netty 构件在 `build.gradle` 中都是普通的
-  `compileOnly`，运行时全部来自 Minecraft 自身，因此运行时类路径上没有重复的 Netty 类，
-  本分支完全没有 JarInJar（1.21.1 分支内置 `netty-codec-http` 4.1.97；1.20.1 在其
-  `-all.jar` 中内置 4.1.82）。
+* **无需额外安装任何东西** —— 核心 Netty 构件在 `build.gradle` 中是普通的 `compileOnly`，
+  运行时来自 Minecraft 自身；`netty-codec-http` 是唯一随 jar 分发的模块，通过 JarInJar
+  内置（并用 `additionalRuntimeClasspath` 供开发运行配置使用，它们看不到 jarJar 构件）
+  —— 与 1.21.1 分支相同的做法（1.21.1 内置 4.1.97；1.20.1 在 `-all.jar` 中内置 4.1.82）。
 * 对 WebSocket 协议（`WebSocketServerHandshaker`、`TextWebSocketFrame`）与 TLS
   （`SslContextBuilder.forServer(File, File)`）的原生支持。
 * 久经考验的事件循环模型，与 Minecraft 自身的网络层一致。
-
-编译类路径需要这些显式的 `compileOnly` 声明（见 `build.gradle`），因为 ModDevGradle
-不会重新导出 Minecraft 的传递依赖；由于 1.21.8 的 userdev 构件随附完整 Netty，
-开发运行类路径上同样有这些类。
 
 ### 为什么用无状态 HMAC 令牌而不是会话？
 

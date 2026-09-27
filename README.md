@@ -191,5 +191,6 @@ A `.gitignore` rule for `ssl/` is already provided by the template.
 
 ## License
 
-See [TEMPLATE_LICENSE.txt](TEMPLATE_LICENSE.txt) for the underlying NeoForge MDK template license.
-The Online Chat source in this repository is provided as-is for personal and commercial server use.
+Online Chat is licensed under the **MIT License** — see [LICENSE](LICENSE).
+[TEMPLATE_LICENSE.txt](TEMPLATE_LICENSE.txt) documents the license of the underlying
+NeoForge MDK template this repository was generated from.

@@ -14,7 +14,7 @@
 |------|------|
 | JDK | 21（Microsoft OpenJDK、Temurin、Adoptium 均可） |
 | Minecraft | 1.21.1 |
-| NeoForge | 21.1.250 或更新 |
+| NeoForge | 21.1.252 或更新 |
 | Gradle | 由 wrapper 提供 —— 无需在系统中单独安装 |
 
 Windows PowerShell、macOS Terminal 与 Linux bash 均受支持。

@@ -38,14 +38,15 @@ clickable **[Yes] / [No]** confirmation, and then chat with players in real time
 
 ## Supported versions & repository layout
 
-This mod supports three Minecraft generations, one **branch per version** — a single jar
-cannot cover all three (1.20.1 still uses the `net.minecraftforge` namespaces, and the event,
-config and component APIs differ between NeoForge 21.1 and 26.1):
+This mod supports four Minecraft generations, one **branch per version** — a single jar
+cannot cover all of them (1.20.1 still uses the `net.minecraftforge` namespaces, and the
+event, config and component APIs differ across the NeoForge lines):
 
 | Branch | Minecraft | NeoForge | Loader dep | Build JDK | Toolchain | Jar to install |
 |--------|-----------|----------|-----------|-----------|-----------|----------------|
 | `master` | 1.21.1 | 21.1.233+ | `neoforge` | 21 | ModDevGradle 2.0.147 · Gradle 9.2.1 | `onlinechat-1.21.1-neoforge-<ver>.jar` |
 | **`mc/1.21.8`** *(this branch)* | 1.21.8 | 21.8.54+ | `neoforge` | 21 | ModDevGradle 2.0.147 · Gradle 9.2.1 | `onlinechat-1.21.8-neoforge-<ver>.jar` |
+| `mc/26.1.2` | 26.1.2 | 26.1.2.111+ | `neoforge` | 25 | ModDevGradle 2.0.147 · Gradle 9.2.1 | `onlinechat-26.1.2-neoforge-<ver>.jar` |
 | `mc/1.20.1` | 1.20.1 | 47.1.106+ | `forge` | 17 | NeoGradle 6.0.21 · Gradle 8.1.1 | `onlinechat-1.20.1-neoforge-<ver>-all.jar` |
 
 Branch-specific notes for **1.21.8**:
@@ -53,10 +54,10 @@ Branch-specific notes for **1.21.8**:
 * MC 1.21.8 bundles Netty **4.1.118 without `netty-codec-http`**, so this branch embeds
   it via JarInJar (same approach as `master`) — nothing else is bundled.
 * The matching NeoForge line for MC 1.21.8 is **21.8.x** (`minecraft_version_range=[1.21.8,1.21.9)`).
-  Do not confuse it with the *26.1.2* line — that is a different, later game release
-  (NeoForge 26.1.2.x, which is Java 25 only).
+  Do not confuse it with the *26.1.2* line — that is a different, later game release,
+  supported on its own `mc/26.1.2` branch (NeoForge 26.1.2.x, Java 25 only).
 * The `mc/1.20.1` build produces an extra `-all.jar` — install the `-all.jar` there.
-* Release jars for all three versions are kept in the local `release/` folder (git-ignored):
+* Release jars for all versions are kept in the local `release/` folder (git-ignored):
   `git checkout <branch>` then `.\gradlew.bat build`, and copy the jar over.
 
 ---

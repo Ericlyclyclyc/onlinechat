@@ -8,13 +8,14 @@
 
 ## 仓库结构（分支）
 
-一套代码，**每个 Minecraft 世代一个分支** —— 三个 NeoForge 世代差异太大，无法用单个 jar 覆盖
-（1.20.1 仍使用 `net.minecraftforge` 命名空间；事件、配置与组件 API 在 21.1 与 26.1 之间又发生了迁移）：
+一套代码，**每个 Minecraft 世代一个分支** —— 四个 NeoForge 世代差异太大，无法用单个 jar 覆盖
+（1.20.1 仍使用 `net.minecraftforge` 命名空间；事件、配置与组件 API 在后续各线之间又发生了迁移）：
 
 | 分支 | Minecraft | NeoForge | 加载器依赖 | 构建 JDK | 工具链 |
 |------|-----------|----------|-----------|---------|--------|
 | `master` | 1.21.1 | 21.1.233+ | `neoforge` | 21 | ModDevGradle 2.0.147 · Gradle 9.2.1 · Mojang 映射 |
 | **`mc/1.21.8`** *（本分支）* | 1.21.8 | 21.8.54+ | `neoforge` | 21 | ModDevGradle 2.0.147 · Gradle 9.2.1 · Mojang 映射 |
+| `mc/26.1.2` | 26.1.2 | 26.1.2.111+ | `neoforge` | 25 | ModDevGradle 2.0.147 · Gradle 9.2.1 · Mojang 映射 |
 | `mc/1.20.1` | 1.20.1 | 47.1.106+ | `forge` | 17 | NeoGradle 6.0.21 · Gradle 8.1.1 · parchment 2023.09.03 |
 
 协作规则：
@@ -28,7 +29,7 @@
 * 本地发布 jar 放在被 git 忽略的 `release/` 目录：
   `git checkout <分支>` → `.\gradlew.bat build` → 把 jar 复制到 `release/`。
 * CI（`.github/workflows/build.yml`）按分支选择 JDK：21（`master`）、21（`mc/1.21.8`）、
-  17（`mc/1.20.1`）。
+  25（`mc/26.1.2`）、17（`mc/1.20.1`）。
 
 本分支值得注意的差异：
 
@@ -37,8 +38,8 @@
   使用），与 `master` 完全一致。
 * 对应 MC 1.21.8 的 NeoForge 线是 **21.8.x**（`neo_version=21.8.54`、
   `minecraft_version_range=[1.21.8,1.21.9)`、`loader_version_range=[9,)` —— FML 9）。
-  **26.1.2.x 线是另一个更晚的游戏版本**（2026-04，仅支持 Java 25）；游戏版本 id 不同
-  （1.21.8 vs 26.1.2），模组在那条线上会被拒绝加载。
+  **26.1.2 线是另一个更晚的游戏版本**（2026-04，仅支持 Java 25），在独立的
+  `mc/26.1.2` 分支上支持；游戏版本 id 不同（1.21.8 vs 26.1.2），两个 jar 不可互换。
 * **Java 21 端到端：** 21.8.x 整条线都是 Java 21 字节码，直接
   `java.toolchain.languageVersion = 21` 原生编译 —— 无需任何 release/source-target 变通。
 * MC 1.21.8 早于 26.1 的 API 重命名，因此这里的代码使用旧名称：`ResourceLocation`

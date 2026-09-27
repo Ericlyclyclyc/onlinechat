@@ -1,4 +1,4 @@
-# Online Chat —— Minecraft ⇄ 网页聊天桥接（NeoForge 1.21.8）
+# Online Chat —— Minecraft ⇄ 网页聊天桥接（NeoForge 26.1）
 
 > 语言：[English](README.md) | **简体中文**
 
@@ -16,7 +16,7 @@
 * 🛡️ 可选的 **进服两步验证（2FA）**：开启的玩家进服后被冻结，直到在已登录其绑定网页账号的浏览器中确认。
 * 🌐 所有游戏内文本在 **服务端** 翻译（`language = "en_us" | "zh_cn"`）—— 原版客户端也能看到中文。
 * 🧩 网页前端首次启动时释放到 `config/onlinechat/web/`，无需重新构建 jar 即可自定义。
-* 🚫 零额外运行时依赖 —— MC 1.21.8 自带完整的 Netty 4.2.7（含 netty-codec-http）与 Gson，无需内置或安装任何东西。
+* 🚫 零额外运行时依赖 —— MC 26.1.2 自带完整的 Netty 4.2.7（含 netty-codec-http）与 Gson，无需内置或安装任何东西。
 
 ---
 
@@ -37,23 +37,25 @@
 
 ## 支持的版本与仓库结构
 
-本模组支持三个 Minecraft 世代，**每个版本一个分支** —— 单个 jar 无法覆盖全部三个版本
-（1.20.1 仍使用 `net.minecraftforge` 命名空间，且 NeoForge 21.1 与 26.1 之间的事件、配置与组件 API 各不相同）：
+本模组支持四个 Minecraft 世代，**每个版本一个分支** —— 单个 jar 无法覆盖全部版本
+（1.20.1 仍使用 `net.minecraftforge` 命名空间，各 NeoForge 线之间的事件、配置与组件 API 各不相同）：
 
 | 分支 | Minecraft | NeoForge | 加载器依赖 | 构建 JDK | 构建工具链 | 需要安装的 jar |
 |------|-----------|----------|-----------|---------|-----------|----------------|
 | `master` | 1.21.1 | 21.1.233+ | `neoforge` | 21 | ModDevGradle 2.0.147 · Gradle 9.2.1 | `onlinechat-1.21.1-neoforge-<版本>.jar` |
-| **`mc/1.21.8`** *（本分支）* | 1.21.8 | 26.1.2.109+ | `neoforge` | 25 | ModDevGradle 2.0.147 · Gradle 9.2.1 | `onlinechat-1.21.8-neoforge-<版本>.jar` |
+| `mc/1.21.8` | 1.21.8 | 21.8.54+ | `neoforge` | 21 | ModDevGradle 2.0.147 · Gradle 9.2.1 | `onlinechat-1.21.8-neoforge-<版本>.jar` |
+| **`mc/26.1.2`** *（本分支）* | 26.1.2 | 26.1.2.111+ | `neoforge` | 25 | ModDevGradle 2.0.147 · Gradle 9.2.1 | `onlinechat-26.1.2-neoforge-<版本>.jar` |
 | `mc/1.20.1` | 1.20.1 | 47.1.106+ | `forge` | 17 | NeoGradle 6.0.21 · Gradle 8.1.1 | `onlinechat-1.20.1-neoforge-<版本>-all.jar` |
 
-**1.21.8** 分支专属说明：
+**26.1.2** 分支专属说明：
 
-* MC 1.21.8 自带**完整**的 Netty 4.2.7 —— 包括 `netty-codec-http` —— 因此本分支
-  不内置任何东西，也无需运行时变通方案。
-* Mojang 把 "1.21.8" 重命名为加载器版本 **26.1.2**，这就是 `gradle.properties` 中
-  `minecraft_version_range=[26.1.2,26.2)` 的由来。
+* MC 26.1.2（26.1 线的第三个补丁）自带**完整**的 Netty 4.2.7 —— 包括
+  `netty-codec-http` —— 因此本分支不内置任何东西，也无需运行时变通方案。
+* MC 26.1.2 与 "1.21.8" 是**两个不同的游戏版本**（1.21.8 在 `mc/1.21.8` 分支，
+  NeoForge 21.8.x 线）。26.1.2 线仅支持 Java 25，因此
+  `minecraft_version_range=[26.1.2,26.2)`、构建工具链为 25。
 * `mc/1.20.1` 分支的构建会额外产出一个 `-all.jar` —— 在那边请安装 `-all.jar`。
-* 三个版本的发布 jar 都保存在本地的 `release/` 目录（已被 git 忽略）：
+* 各版本的发布 jar 都保存在本地的 `release/` 目录（已被 git 忽略）：
   `git checkout <分支>` 后执行 `.\gradlew.bat build`，再把 jar 复制过去即可。
 
 ---
@@ -71,7 +73,7 @@
    ```powershell
    .\gradlew.bat build
    ```
-   jar 会输出到 `build/libs/onlinechat-1.21.8-neoforge-0.1.1-beta.jar`。
+   jar 会输出到 `build/libs/onlinechat-26.1.2-neoforge-0.1.1-beta.jar`。
 3. **安装** 到你的 `mods/` 文件夹（服务端和/或客户端 —— Web 服务器只在逻辑服务端一侧启动）。
 4. **启动 Minecraft**（专用服务器，或开放到局域网的单人世界 —— 两者皆可）。
    Web 服务器默认监听 `https://0.0.0.0:8443/`。
@@ -120,7 +122,7 @@
 
 `0.0.2-alpha` 及更高版本改为注册四个具体的交互子类（`RightClickBlock` / `RightClickItem` /
 `EntityInteract` / `LeftClickBlock`），2FA 冻结依然能拦截所有交互，但不会再让服务器崩溃。如果你遇到
-该报错，把 jar 换成 `onlinechat-1.21.8-neoforge-0.1.1-beta.jar` 即可，无需迁移任何配置或数据。
+该报错，把 jar 换成 `onlinechat-26.1.2-neoforge-0.1.1-beta.jar` 即可，无需迁移任何配置或数据。
 这些版本还新增了归档搜索、公告以及上面列出的网页聊天体验改进。
 
 ---
@@ -161,7 +163,7 @@
 
 ## 环境要求
 
-* Minecraft **1.21.8**
+* Minecraft **26.1.2**
 * NeoForge **26.1** 或更新
 * Java **25**
 * 一份 TLS 证书（自签名证书适用于局域网测试，公开暴露请用 Let's Encrypt）

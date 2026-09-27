@@ -1,4 +1,4 @@
-# Online Chat — Minecraft ⇄ Web bridge (NeoForge 1.21.8)
+# Online Chat — Minecraft ⇄ Web bridge (NeoForge 26.1)
 
 > Languages: **English** | [简体中文](README.zh-CN.md)
 
@@ -16,7 +16,7 @@ clickable **[Yes] / [No]** confirmation, and then chat with players in real time
 * 🛡️ Optional **2FA on join**: a player with it enabled is frozen until they confirm from a browser that is signed in to their bound web account.
 * 🌐 Every in-game line is translated **server-side** (`language = "en_us" | "zh_cn"`) — vanilla clients see it.
 * 🧩 The web front-end is extracted to `config/onlinechat/web/` on first start so you can restyle it without rebuilding the jar.
-* 🚫 Zero extra runtime dependencies — MC 1.21.8 ships the complete Netty 4.2.7 (including netty-codec-http) and Gson, so nothing is embedded or installed.
+* 🚫 Zero extra runtime dependencies — MC 26.1.2 ships the complete Netty 4.2.7 (including netty-codec-http) and Gson, so nothing is embedded or installed.
 
 ---
 
@@ -38,24 +38,27 @@ clickable **[Yes] / [No]** confirmation, and then chat with players in real time
 
 ## Supported versions & repository layout
 
-This mod supports three Minecraft generations, one **branch per version** — a single jar
-cannot cover all three (1.20.1 still uses the `net.minecraftforge` namespaces, and the event,
-config and component APIs differ between NeoForge 21.1 and 26.1):
+This mod supports four Minecraft generations, one **branch per version** — a single jar
+cannot cover all of them (1.20.1 still uses the `net.minecraftforge` namespaces, and the
+event, config and component APIs differ across the NeoForge lines):
 
 | Branch | Minecraft | NeoForge | Loader dep | Build JDK | Toolchain | Jar to install |
 |--------|-----------|----------|-----------|-----------|-----------|----------------|
 | `master` | 1.21.1 | 21.1.233+ | `neoforge` | 21 | ModDevGradle 2.0.147 · Gradle 9.2.1 | `onlinechat-1.21.1-neoforge-<ver>.jar` |
-| **`mc/1.21.8`** *(this branch)* | 1.21.8 | 26.1.2.109+ | `neoforge` | 25 | ModDevGradle 2.0.147 · Gradle 9.2.1 | `onlinechat-1.21.8-neoforge-<ver>.jar` |
+| `mc/1.21.8` | 1.21.8 | 21.8.54+ | `neoforge` | 21 | ModDevGradle 2.0.147 · Gradle 9.2.1 | `onlinechat-1.21.8-neoforge-<ver>.jar` |
+| **`mc/26.1.2`** *(this branch)* | 26.1.2 | 26.1.2.111+ | `neoforge` | 25 | ModDevGradle 2.0.147 · Gradle 9.2.1 | `onlinechat-26.1.2-neoforge-<ver>.jar` |
 | `mc/1.20.1` | 1.20.1 | 47.1.106+ | `forge` | 17 | NeoGradle 6.0.21 · Gradle 8.1.1 | `onlinechat-1.20.1-neoforge-<ver>-all.jar` |
 
-Branch-specific notes for **1.21.8**:
+Branch-specific notes for **26.1.2**:
 
-* MC 1.21.8 bundles the **complete** Netty 4.2.7 — including `netty-codec-http` — so this
-  branch embeds nothing and needs no runtime workarounds.
-* Mojang renamed "1.21.8" to loader version **26.1.2**, which is why
-  `minecraft_version_range=[26.1.2,26.2)` in `gradle.properties`.
+* MC 26.1.2 (the third patch of the 26.1 line) bundles the **complete** Netty 4.2.7 —
+  including `netty-codec-http` — so this branch embeds nothing and needs no runtime
+  workarounds.
+* MC 26.1.2 is a **different, later release** than "1.21.8" (which has its own branch,
+  `mc/1.21.8`, on the NeoForge 21.8.x line). The 26.1.2 line is Java 25 only, which is
+  why `minecraft_version_range=[26.1.2,26.2)` and the build toolchain is 25.
 * The `mc/1.20.1` build produces an extra `-all.jar` — install the `-all.jar` there.
-* Release jars for all three versions are kept in the local `release/` folder (git-ignored):
+* Release jars for all versions are kept in the local `release/` folder (git-ignored):
   `git checkout <branch>` then `.\gradlew.bat build`, and copy the jar over.
 
 ---
@@ -73,7 +76,7 @@ Branch-specific notes for **1.21.8**:
    ```powershell
    .\gradlew.bat build
    ```
-   The jar is written to `build/libs/onlinechat-1.21.8-neoforge-0.1.1-beta.jar`.
+   The jar is written to `build/libs/onlinechat-26.1.2-neoforge-0.1.1-beta.jar`.
 3. **Install** it into your `mods/` folder (server and/or client — the web server only
    starts on the logical server side).
 4. **Start Minecraft** (dedicated server or single-player world opened to LAN — both work).
@@ -124,7 +127,7 @@ NeoForge builds (21.1.x) abort during `ServerStarting` with:
 `0.0.2-alpha` and newer register the four concrete interaction subclasses instead
 (`RightClickBlock` / `RightClickItem` / `EntityInteract` / `LeftClickBlock`), so the 2FA freeze still
 blocks every interaction without crashing the server. If you see that error, replace the jar with
-`onlinechat-1.21.8-neoforge-0.1.1-beta.jar` — no config or data migration is needed. These releases also
+`onlinechat-26.1.2-neoforge-0.1.1-beta.jar` — no config or data migration is needed. These releases also
 add archive search, announcements and the web-chat UX improvements listed above.
 
 ---
@@ -165,7 +168,7 @@ add archive search, announcements and the web-chat UX improvements listed above.
 
 ## Requirements
 
-* Minecraft **1.21.8**
+* Minecraft **26.1.2**
 * NeoForge **26.1** or newer
 * Java **25**
 * A TLS certificate (self-signed is fine for LAN testing, Let's Encrypt for public exposure)

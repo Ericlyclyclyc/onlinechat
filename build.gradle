@@ -37,7 +37,7 @@ base {
     archivesName = "${mod_id}-${minecraft_version}-neoforge"
 }
 
-// MC 1.21.8 ships Java 25 class files, so the toolchain must be 25 to compile against them.
+// MC 26.1.2 ships Java 25 class files, so the toolchain must be 25 to compile against them.
 java.toolchain.languageVersion = JavaLanguageVersion.of(25)
 
 neoForge {
@@ -116,7 +116,7 @@ configurations {
 }
 
 dependencies {
-    // MC 1.21.8 bundles the complete Netty 4.2.7.Final — including netty-codec-http — so every
+    // MC 26.1.2 bundles the complete Netty 4.2.7.Final — including netty-codec-http — so every
     // module is provided at runtime by Minecraft itself and only needs compileOnly visibility.
     // Nothing is shaded into the mod jar.
     compileOnly 'io.netty:netty-buffer:4.2.7.Final'

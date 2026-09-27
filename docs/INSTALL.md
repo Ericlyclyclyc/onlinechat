@@ -3,8 +3,8 @@
 > Languages: **English** | [简体中文](zh/INSTALL.md)
 
 This document covers building the mod from source, deploying it to a server, and
-preparing the TLS material it needs. It is written for the **1.21.8** branch
-(`mc/1.21.8`); other Minecraft versions live on their own branches — see the
+preparing the TLS material it needs. It is written for the **26.1.2** branch
+(`mc/26.1.2`); other Minecraft versions live on their own branches — see the
 version table in [README.md](../README.md).
 
 ---
@@ -14,7 +14,7 @@ version table in [README.md](../README.md).
 | Requirement | Version |
 |-------------|---------|
 | JDK | 25 (Microsoft OpenJDK, Temurin, Adoptium all work) |
-| Minecraft | 1.21.8 |
+| Minecraft | 26.1.2 |
 | NeoForge | 26.1 or newer |
 | Gradle | Provided by the wrapper — no system install needed |
 
@@ -31,7 +31,7 @@ Windows PowerShell, macOS Terminal and Linux bash are all supported.
 The output jar is written to:
 
 ```
-build/libs/onlinechat-1.21.8-neoforge-0.1.1-beta.jar
+build/libs/onlinechat-26.1.2-neoforge-0.1.1-beta.jar
 ```
 
 > The file name follows the NeoForge convention `<modid>-<mcversion>-<loader>-<modversion>.jar`.
@@ -127,7 +127,7 @@ If your key is encrypted, put the passphrase in `config/onlinechat-server.toml`:
 
 ## 4. Install on a dedicated server
 
-1. Drop `onlinechat-1.21.8-neoforge-0.1.1-beta.jar` into your server's `mods/` folder.
+1. Drop `onlinechat-26.1.2-neoforge-0.1.1-beta.jar` into your server's `mods/` folder.
 2. Make sure the TLS material exists relative to the server's working directory — by default
    `./ssl/fullchain.pem` and `./ssl/privkey.pem` (or set `tls.certDir` to wherever they live).
 3. Start the server as usual (`java -jar ...` or your start script).

@@ -73,7 +73,7 @@ Branch-specific notes for **1.21.8**:
    ```powershell
    .\gradlew.bat build
    ```
-   The jar is written to `build/libs/onlinechat-1.21.8-neoforge-0.0.3-alpha.jar`.
+   The jar is written to `build/libs/onlinechat-1.21.8-neoforge-0.1.1-beta.jar`.
 3. **Install** it into your `mods/` folder (server and/or client — the web server only
    starts on the logical server side).
 4. **Start Minecraft** (dedicated server or single-player world opened to LAN — both work).
@@ -124,7 +124,7 @@ NeoForge builds (21.1.x) abort during `ServerStarting` with:
 `0.0.2-alpha` and newer register the four concrete interaction subclasses instead
 (`RightClickBlock` / `RightClickItem` / `EntityInteract` / `LeftClickBlock`), so the 2FA freeze still
 blocks every interaction without crashing the server. If you see that error, replace the jar with
-`onlinechat-1.21.8-neoforge-0.0.3-alpha.jar` — no config or data migration is needed. These releases also
+`onlinechat-1.21.8-neoforge-0.1.1-beta.jar` — no config or data migration is needed. These releases also
 add archive search, announcements and the web-chat UX improvements listed above.
 
 ---

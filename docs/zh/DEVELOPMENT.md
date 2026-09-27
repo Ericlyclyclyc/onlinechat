@@ -8,13 +8,14 @@
 
 ## 仓库结构（分支）
 
-一套代码，**每个 Minecraft 世代一个分支** —— 三个 NeoForge 世代差异太大，无法用单个 jar 覆盖
-（1.20.1 仍使用 `net.minecraftforge` 命名空间；事件、配置与组件 API 在 21.1 与 26.1 之间又发生了迁移）：
+一套代码，**每个 Minecraft 世代一个分支** —— 四个 NeoForge 世代差异太大，无法用单个 jar 覆盖
+（1.20.1 仍使用 `net.minecraftforge` 命名空间；事件、配置与组件 API 在后续各线之间又发生了迁移）：
 
 | 分支 | Minecraft | NeoForge | 加载器依赖 | 构建 JDK | 工具链 |
 |------|-----------|----------|-----------|---------|--------|
-| `master` | 1.21.1 | 21.1.250+ | `neoforge` | 21 | ModDevGradle 2.0.147 · Gradle 9.2.1 · Mojang 映射 |
-| `mc/1.21.8` | 1.21.8 | 26.1.2.109+ | `neoforge` | 25 | ModDevGradle 2.0.147 · Gradle 9.2.1 · Mojang 映射 |
+| `master` | 1.21.1 | 21.1.233+ | `neoforge` | 21 | ModDevGradle 2.0.147 · Gradle 9.2.1 · Mojang 映射 |
+| `mc/1.21.8` | 1.21.8 | 21.8.54+ | `neoforge` | 21 | ModDevGradle 2.0.147 · Gradle 9.2.1 · Mojang 映射 |
+| `mc/26.1.2` | 26.1.2 | 26.1.2.111+ | `neoforge` | 25 | ModDevGradle 2.0.147 · Gradle 9.2.1 · Mojang 映射 |
 | **`mc/1.20.1`** *（本分支）* | 1.20.1 | 47.1.106+ | `forge` | 17 | NeoGradle 6.0.21 · Gradle 8.1.1 · parchment 2023.09.03 |
 
 协作规则：
@@ -27,8 +28,8 @@
 * 版本相关的 Java 差异很小且彼此隔离（配置 spec 类型、事件名、属性名、mods.toml 位置）。
 * 本地发布 jar 放在被 git 忽略的 `release/` 目录：
   `git checkout <分支>` → `.\gradlew.bat build` → 把 jar 复制到 `release/`。
-* CI（`.github/workflows/build.yml`）按分支选择 JDK：21（`master`）、21 + 工具链 25（`mc/1.21.8`）、
-  17（`mc/1.20.1`）。
+* CI（`.github/workflows/build.yml`）按分支选择 JDK：21（`master`）、21（`mc/1.21.8`）、
+  25（`mc/26.1.2`）、17（`mc/1.20.1`）。
 
 本分支值得注意的差异：
 

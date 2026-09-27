@@ -9,14 +9,15 @@ most likely to touch.
 
 ## Repository structure (branches)
 
-One codebase, one branch per Minecraft generation — the three NeoForge lines differ too
+One codebase, one branch per Minecraft generation — the four NeoForge lines differ too
 much for a single jar (1.20.1 still uses `net.minecraftforge` namespaces; the event, config
-and component APIs moved again between 21.1 and 26.1):
+and component APIs moved again across the later lines):
 
 | Branch | Minecraft | NeoForge | Loader dep | Build JDK | Toolchain |
 |--------|-----------|----------|-----------|-----------|-----------|
-| `master` | 1.21.1 | 21.1.250+ | `neoforge` | 21 | ModDevGradle 2.0.147 · Gradle 9.2.1 · Mojang mappings |
-| `mc/1.21.8` | 1.21.8 | 26.1.2.109+ | `neoforge` | 25 | ModDevGradle 2.0.147 · Gradle 9.2.1 · Mojang mappings |
+| `master` | 1.21.1 | 21.1.233+ | `neoforge` | 21 | ModDevGradle 2.0.147 · Gradle 9.2.1 · Mojang mappings |
+| `mc/1.21.8` | 1.21.8 | 21.8.54+ | `neoforge` | 21 | ModDevGradle 2.0.147 · Gradle 9.2.1 · Mojang mappings |
+| `mc/26.1.2` | 26.1.2 | 26.1.2.111+ | `neoforge` | 25 | ModDevGradle 2.0.147 · Gradle 9.2.1 · Mojang mappings |
 | **`mc/1.20.1`** *(this branch)* | 1.20.1 | 47.1.106+ | `forge` | 17 | NeoGradle 6.0.21 · Gradle 8.1.1 · parchment 2023.09.03 |
 
 Working rules:
@@ -30,8 +31,8 @@ Working rules:
   names, attribute names, mods.toml location).
 * Local release jars are kept in the git-ignored `release/` folder:
   `git checkout <branch>` → `.\gradlew.bat build` → copy the jar to `release/`.
-* CI (`.github/workflows/build.yml`) picks the JDK per branch: 21 (`master`), 21 with
-  toolchain 25 (`mc/1.21.8`), 17 (`mc/1.20.1`).
+* CI (`.github/workflows/build.yml`) picks the JDK per branch: 21 (`master`), 21 (`mc/1.21.8`),
+  25 (`mc/26.1.2`), 17 (`mc/1.20.1`).
 
 This branch's extras worth knowing:
 

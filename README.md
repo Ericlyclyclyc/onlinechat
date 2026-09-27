@@ -38,14 +38,15 @@ clickable **[Yes] / [No]** confirmation, and then chat with players in real time
 
 ## Supported versions & repository layout
 
-This mod supports three Minecraft generations, one **branch per version** — a single jar
-cannot cover all three (1.20.1 still uses the `net.minecraftforge` namespaces, and the event,
-config and component APIs differ between NeoForge 21.1 and 26.1):
+This mod supports four Minecraft generations, one **branch per version** — a single jar
+cannot cover all of them (1.20.1 still uses the `net.minecraftforge` namespaces, and the
+event, config and component APIs differ across the NeoForge lines):
 
 | Branch | Minecraft | NeoForge | Loader dep | Build JDK | Toolchain | Jar to install |
 |--------|-----------|----------|-----------|-----------|-----------|----------------|
 | `master` | 1.21.1 | 21.1.233+ | `neoforge` | 21 | ModDevGradle 2.0.147 · Gradle 9.2.1 | `onlinechat-1.21.1-neoforge-<ver>.jar` |
-| `mc/1.21.8` | 1.21.8 | 26.1.2.109+ | `neoforge` | 25 | ModDevGradle 2.0.147 · Gradle 9.2.1 | `onlinechat-1.21.8-neoforge-<ver>.jar` |
+| `mc/1.21.8` | 1.21.8 | 21.8.54+ | `neoforge` | 21 | ModDevGradle 2.0.147 · Gradle 9.2.1 | `onlinechat-1.21.8-neoforge-<ver>.jar` |
+| `mc/26.1.2` | 26.1.2 | 26.1.2.111+ | `neoforge` | 25 | ModDevGradle 2.0.147 · Gradle 9.2.1 | `onlinechat-26.1.2-neoforge-<ver>.jar` |
 | **`mc/1.20.1`** *(this branch)* | 1.20.1 | 47.1.106+ | `forge` | 17 | NeoGradle 6.0.21 · Gradle 8.1.1 | `onlinechat-1.20.1-neoforge-<ver>-all.jar` |
 
 Branch-specific notes for **1.20.1**:
@@ -60,7 +61,7 @@ Branch-specific notes for **1.20.1**:
   on a dedicated server (`saves/<world>/serverconfig/` on a client). The **common** config is
   still `config/onlinechat-common.toml`. (On 1.21.1 / 1.21.8 the server config moved to `config/`.)
 * Building requires a **JDK 17** daemon (NeoGradle 6 cannot run on JDK 20+); see `docs/INSTALL.md`.
-* Release jars for all three versions are kept in the local `release/` folder (git-ignored):
+* Release jars for all versions are kept in the local `release/` folder (git-ignored):
   `git checkout <branch>` then `.\gradlew.bat build`, and copy the jar over.
 
 ---

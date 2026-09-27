@@ -42,7 +42,7 @@
 
 | 分支 | Minecraft | NeoForge | 加载器依赖 | 构建 JDK | 构建工具链 | 需要安装的 jar |
 |------|-----------|----------|-----------|---------|-----------|----------------|
-| `master` | 1.21.1 | 21.1.250+ | `neoforge` | 21 | ModDevGradle 2.0.147 · Gradle 9.2.1 | `onlinechat-1.21.1-neoforge-<版本>.jar` |
+| `master` | 1.21.1 | 21.1.233+ | `neoforge` | 21 | ModDevGradle 2.0.147 · Gradle 9.2.1 | `onlinechat-1.21.1-neoforge-<版本>.jar` |
 | `mc/1.21.8` | 1.21.8 | 26.1.2.109+ | `neoforge` | 25 | ModDevGradle 2.0.147 · Gradle 9.2.1 | `onlinechat-1.21.8-neoforge-<版本>.jar` |
 | **`mc/1.20.1`** *（本分支）* | 1.20.1 | 47.1.106+ | `forge` | 17 | NeoGradle 6.0.21 · Gradle 8.1.1 | `onlinechat-1.20.1-neoforge-<版本>-all.jar` |
 

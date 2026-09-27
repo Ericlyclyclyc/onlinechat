@@ -43,8 +43,8 @@ Windows PowerShell, macOS Terminal and Linux bash are all supported.
 The build produces **two** jars:
 
 ```
-build/libs/onlinechat-1.20.1-neoforge-0.0.3-alpha.jar      # intermediate — DO NOT install
-build/libs/onlinechat-1.20.1-neoforge-0.0.3-alpha-all.jar  # the release jar — install this one
+build/libs/onlinechat-1.20.1-neoforge-0.1.1-beta.jar      # intermediate — DO NOT install
+build/libs/onlinechat-1.20.1-neoforge-0.1.1-beta-all.jar  # the release jar — install this one
 ```
 
 > **Install the `-all.jar`.** NeoGradle 6 writes the JarInJar (embedded `netty-codec-http`)
@@ -146,7 +146,7 @@ If your key is encrypted, put the passphrase in `config/onlinechat-server.toml`:
 
 ## 4. Install on a dedicated server
 
-1. Drop `onlinechat-1.20.1-neoforge-0.0.3-alpha-all.jar` into your server's `mods/` folder
+1. Drop `onlinechat-1.20.1-neoforge-0.1.1-beta-all.jar` into your server's `mods/` folder
    (the **`-all.jar`**, see §2 — the plain jar has no embedded dependency).
 2. Make sure the TLS material exists relative to the server's working directory — by default
    `./ssl/fullchain.pem` and `./ssl/privkey.pem` (or set `tls.certDir` to wherever they live).

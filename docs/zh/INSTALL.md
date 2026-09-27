@@ -41,8 +41,8 @@ Windows PowerShell、macOS Terminal 与 Linux bash 均受支持。
 构建会产出 **两个** jar：
 
 ```
-build/libs/onlinechat-1.20.1-neoforge-0.0.3-alpha.jar      # 中间产物 —— 不要安装
-build/libs/onlinechat-1.20.1-neoforge-0.0.3-alpha-all.jar  # 发布用 jar —— 安装这个
+build/libs/onlinechat-1.20.1-neoforge-0.1.1-beta.jar      # 中间产物 —— 不要安装
+build/libs/onlinechat-1.20.1-neoforge-0.1.1-beta-all.jar  # 发布用 jar —— 安装这个
 ```
 
 > **请安装 `-all.jar`。** NeoGradle 6 会把 JarInJar（内置的 `netty-codec-http`）写进
@@ -139,7 +139,7 @@ openssl req -x509 -newkey rsa:2048 -nodes -days 365 \
 
 ## 4. 在专用服务器上安装
 
-1. 把 `onlinechat-1.20.1-neoforge-0.0.3-alpha-all.jar` 放入服务器的 `mods/` 文件夹
+1. 把 `onlinechat-1.20.1-neoforge-0.1.1-beta-all.jar` 放入服务器的 `mods/` 文件夹
    （**`-all.jar`**，见第 2 节 —— 普通 jar 没有内置依赖）。
 2. 确保相对于服务器工作目录存在 TLS 材料 —— 默认是 `./ssl/fullchain.pem` 与
    `./ssl/privkey.pem`（或设置 `tls.certDir` 指向它们所在的目录）。

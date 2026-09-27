@@ -319,7 +319,7 @@ Upgrading is designed to need no manual migration:
 
 ```powershell
 $env:JAVA_HOME = 'C:\path\to\jdk-17'   # NeoGradle 6 needs a JDK ≤ 20 daemon
-.\gradlew.bat build                    # produces build/libs/onlinechat-1.20.1-neoforge-0.0.3-alpha.jar + -all.jar
+.\gradlew.bat build                    # produces build/libs/onlinechat-1.20.1-neoforge-0.1.1-beta.jar + -all.jar
 .\gradlew.bat publish                  # publishes to the local ./repo maven (see build.gradle)
 ```
 
@@ -332,7 +332,7 @@ Release procedure per version:
 1. `git checkout <branch>` (this branch builds 1.20.1).
 2. `.\gradlew.bat build` and verify the E2E suite (`%TEMP%\oc-e2e\server-driver.ps1`
    locally — HTTP/HTTPS, WebSocket, REST and RCON checks).
-3. Copy **`build/libs/onlinechat-1.20.1-neoforge-0.0.3-alpha-all.jar`** (the JarInJar
+3. Copy **`build/libs/onlinechat-1.20.1-neoforge-0.1.1-beta-all.jar`** (the JarInJar
    artifact — the plain jar is not runnable) into the git-ignored `release/` folder.
 4. Repeat for `master` (1.21.1) and `mc/1.21.8`.
 

@@ -294,7 +294,7 @@ Token 为 32 字节随机数（base64url）、一次性、与进服玩家的 UUI
 
 ```powershell
 $env:JAVA_HOME = 'C:\path\to\jdk-17'   # NeoGradle 6 需要 JDK ≤ 20 的守护进程
-.\gradlew.bat build                    # 产出 onlinechat-1.20.1-neoforge-0.0.3-alpha.jar 与 -all.jar
+.\gradlew.bat build                    # 产出 onlinechat-1.20.1-neoforge-0.1.1-beta.jar 与 -all.jar
 .\gradlew.bat publish                  # 发布到本地 ./repo maven（见 build.gradle）
 ```
 
@@ -307,7 +307,7 @@ $env:JAVA_HOME = 'C:\path\to\jdk-17'   # NeoGradle 6 需要 JDK ≤ 20 的守护
 1. `git checkout <分支>`（本分支构建 1.20.1）。
 2. `.\gradlew.bat build`，并运行 E2E 套件（本地 `%TEMP%\oc-e2e\server-driver.ps1`
    —— HTTP/HTTPS、WebSocket、REST 与 RCON 检查）。
-3. 把 **`build/libs/onlinechat-1.20.1-neoforge-0.0.3-alpha-all.jar`**（JarInJar 产物 ——
+3. 把 **`build/libs/onlinechat-1.20.1-neoforge-0.1.1-beta-all.jar`**（JarInJar 产物 ——
    普通 jar 不可运行）复制进被 git 忽略的 `release/` 目录。
 4. 对 `master`（1.21.1）与 `mc/1.21.8` 重复以上步骤。
 

@@ -30,7 +30,9 @@ Windows PowerShell、macOS Terminal 与 Linux bash 均受支持。
 输出的 jar 会写入：
 
 ```
-build/libs/onlinechat-1.21.8-neoforge-0.1.1-beta.jar
+
+build/libs/onlinechat-1.21.8-neoforge-1.0.0.jar
+
 ```
 
 > 文件名遵循 NeoForge 约定 `<modid>-<mcversion>-<loader>-<modversion>.jar`。
@@ -120,7 +122,9 @@ openssl req -x509 -newkey rsa:2048 -nodes -days 365 \
 
 ## 4. 在专用服务器上安装
 
-1. 把 `onlinechat-1.21.8-neoforge-0.1.1-beta.jar` 放入服务器的 `mods/` 文件夹。
+
+1. 把 `onlinechat-1.21.8-neoforge-1.0.0.jar` 放入服务器的 `mods/` 文件夹。
+
 2. 确保相对于服务器工作目录存在 TLS 材料 —— 默认是 `./ssl/fullchain.pem` 与
    `./ssl/privkey.pem`（或设置 `tls.certDir` 指向它们所在的目录）。
 3. 照常启动服务器（`java -jar ...` 或你的启动脚本）。
@@ -212,7 +216,9 @@ New-Item -ItemType Junction -Path .\run\ssl -Target ..\ssl
   会刷新，新版本新增的文件会被复制进来，不再提供的文件会被删除（仅限未改动过的），
   而 **你编辑过的文件会保留**。`locales/*.json` 会做键级合并，自定义文案得以保留，同时新键仍会出现。
   若你改过的文件在上游也有变化，日志会以 WARN 列出，便于你手动合并。
-* **强制干净重置** —— 删除 `config/onlinechat/web/.exist`（或整个 `web` 目录）并重启，即可重新
-  释放原始默认文件，舍弃前端改动。配置、账号与聊天记录不会因此受影响。
+* **强制干净重置** —— 在 `onlinechat-server.toml` 的 `[storage]` 节中把 `webForceReextract`
+  设为 `true` 并重启：整个网页前端会被原始内置副本覆写，开关随后自动复位。
+  （删除 `config/onlinechat/web/.exist` —— 或整个 `web` 目录 —— 再重启仍然可用作手动后备方式。）
+  配置、账号与聊天记录不会因此受影响。
 
 升级前请务必备份 `config/onlinechat*` 以及你的 `accounts.json` / 聊天记录。

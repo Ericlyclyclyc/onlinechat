@@ -283,9 +283,21 @@ public class ChatBridge {
         return CommonConfig.SYSTEM_MESSAGE_KINDS.get().contains(kind);
     }
 
-    /** Broadcast a system-style message to all web clients. */
-    public void emitWebSystem(String text) {
+    /**
+     * Broadcasts a web-presence system line ("alice connected to the web chat" /
+     * "alice disconnected from the web chat") to every web client. Gated by the dedicated
+     * {@code webPresenceMessages} switch (and its deprecated {@code bridgeWebPresence} alias),
+     * so the web chat can be kept free of connect/disconnect noise.
+     */
+    public void emitWebPresence(String text) {
+        if (!CommonConfig.WEB_PRESENCE_MESSAGES.get()) return;
         if (!CommonConfig.BRIDGE_JOIN_LEAVE.get()) return;
+        rememberAndBroadcast(new ChatMessage(System.currentTimeMillis(), Kind.SYSTEM, null, null, text, "web"));
+    }
+
+    /** Broadcast a generic system-style message (e.g. a bind confirmation) to all web clients. */
+    public void emitWebSystem(String text) {
+        if (!CommonConfig.BRIDGE_SYSTEM_MESSAGES.get()) return;
         rememberAndBroadcast(new ChatMessage(System.currentTimeMillis(), Kind.SYSTEM, null, null, text, "web"));
     }
 

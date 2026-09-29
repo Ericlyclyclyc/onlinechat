@@ -31,7 +31,9 @@ Windows PowerShell, macOS Terminal and Linux bash are all supported.
 The output jar is written to:
 
 ```
-build/libs/onlinechat-26.1.2-neoforge-0.1.1-beta.jar
+
+build/libs/onlinechat-26.1.2-neoforge-1.0.0.jar
+
 ```
 
 > The file name follows the NeoForge convention `<modid>-<mcversion>-<loader>-<modversion>.jar`.
@@ -127,7 +129,9 @@ If your key is encrypted, put the passphrase in `config/onlinechat-server.toml`:
 
 ## 4. Install on a dedicated server
 
-1. Drop `onlinechat-26.1.2-neoforge-0.1.1-beta.jar` into your server's `mods/` folder.
+
+1. Drop `onlinechat-26.1.2-neoforge-1.0.0.jar` into your server's `mods/` folder.
+
 2. Make sure the TLS material exists relative to the server's working directory — by default
    `./ssl/fullchain.pem` and `./ssl/privkey.pem` (or set `tls.certDir` to wherever they live).
 3. Start the server as usual (`java -jar ...` or your start script).
@@ -226,8 +230,10 @@ to your existing data:
   are removed (only if unmodified), and **your edited files are kept**. `locales/*.json` are key-merged so
   custom wording survives while new keys still appear. If a file you edited also changed upstream, the log
   prints a WARN listing it so you can merge by hand.
-* **Forcing a clean reset** — delete `config/onlinechat/web/.exist` (or the whole `web` directory) and
-  restart to re-extract pristine defaults, discarding front-end edits. Config, accounts and chat history
+* **Forcing a clean reset** — set `webForceReextract = true` in the `[storage]` section of
+  `onlinechat-server.toml` and restart: the whole web front-end is overwritten with the pristine
+  bundled copy and the switch resets itself. (Deleting `config/onlinechat/web/.exist` — or the whole
+  `web` directory — and restarting still works as a manual fallback.) Config, accounts and chat history
   are never touched by this.
 
 Always keep a backup of `config/onlinechat*` and your `accounts.json` / chat log before upgrading.

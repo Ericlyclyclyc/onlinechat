@@ -45,6 +45,9 @@ import java.util.stream.Stream;
  *       copied; files the new version no longer ships are deleted when unmodified. An old marker without a
  *       manifest (pre-manifest versions) is handled conservatively: nothing that differs from the jar is
  *       overwritten or deleted.</li>
+ *   <li>Force re-extract (the {@code webForceReextract} switch in onlinechat-server.toml): the whole
+ *       directory is overwritten with the pristine bundled copy, discarding customisations. This replaces
+ *       the old procedure of deleting {@value #MARKER} by hand.</li>
  * </ul>
  * {@link HttpApiHandler} serves files from this directory first and falls back to the jar for anything
  * missing. Locale files ({@code locales/*.json}) read from disk are additionally overlaid on the bundled
@@ -54,7 +57,7 @@ public final class WebAssets {
     public static final String MARKER = ".exist";
     private static final String RESOURCE_ROOT = "web";
     private static final String MANIFEST_HEADER = "# OnlineChat web front-end manifest - do not edit.";
-    private static final String MANIFEST_HINT = "# Delete this file to re-extract the default web front-end on next start.";
+    private static final String MANIFEST_HINT = "# Reset: set webForceReextract = true in onlinechat-server.toml (or delete this file) and restart.";
     private static final Gson GSON = new GsonBuilder().setPrettyPrinting().disableHtmlEscaping().create();
     private static final HexFormat HEX = HexFormat.of();
 
@@ -69,8 +72,11 @@ public final class WebAssets {
 
     public Path dir() { return dir; }
 
-    /** Populates or upgrades {@link #dir()} from the bundled front-end; see the class comment for the rules. */
-    public void extractIfNeeded() {
+    /**
+     * Populates or upgrades {@link #dir()} from the bundled front-end; see the class comment for the rules.
+     * {@code forceReextract} overwrites everything with the pristine bundled copy (one-shot switch).
+     */
+    public void extractIfNeeded(boolean forceReextract) {
         Path source = bundledRoot();
         if (source == null) {
             OnlineChat.LOGGER.error("[OnlineChat] Could not locate the bundled web resources; the front-end will be served from the jar only");
@@ -85,7 +91,10 @@ public final class WebAssets {
         }
         Path marker = dir.resolve(MARKER);
         try {
-            if (Files.exists(marker)) {
+            if (forceReextract) {
+                OnlineChat.LOGGER.info("[OnlineChat] webForceReextract is set: overwriting the web front-end in {} with the pristine bundled copy", dir);
+                extractAll(marker, bundled);
+            } else if (Files.exists(marker)) {
                 upgrade(marker, bundled);
             } else {
                 extractAll(marker, bundled);

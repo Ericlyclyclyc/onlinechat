@@ -23,13 +23,17 @@ on the client. On a dedicated server, edit them by hand and run
 ## `onlinechat-common.toml`
 
 ```toml
+# Schema version of this config file, written by the mod. Do not edit by hand.
+configVersion = 2
 # Master switch: bridge in-game chat to the web platform.
 bridgeEnabled = true
 # Bridge non-player chat messages (join, quit, death, advancement) to the web platform.
 bridgeSystemMessages = true
 # Which non-player messages should be bridged. Valid values: join, quit, death, advancement.
 systemMessageKinds = ["join", "quit", "death", "advancement"]
-# Broadcast a game-side chat line when a web user connects or disconnects from the WebSocket.
+# Send a system message to the web chat when a web user connects/disconnects.
+webPresenceMessages = true
+# Deprecated pre-1.0.0 name of webPresenceMessages; presence messages need BOTH keys to be true.
 bridgeWebPresence = true
 
 [prefixes]
@@ -81,6 +85,8 @@ Example: `"{prefix} {name} » {message}"` renders as **[Web Chat] Steve » hello
 ## `onlinechat-server.toml`
 
 ```toml
+# Schema version of this config file, written by the mod. Do not edit by hand.
+configVersion = 2
 # Language used for every in-game message this mod sends (chat prompts, command feedback).
 # Any language file shipped under assets/onlinechat/lang/ (en_us, zh_cn). Unknown keys fall back to en_us.
 language = "en_us"
@@ -123,6 +129,7 @@ httpPort = 8080
     chatPageSize = 30
     chatLogFile = "onlinechat/chat_history.jsonl"
     webDir = "config/onlinechat/web"
+    webForceReextract = false
 
 [twoFactor]
     enabled = false
@@ -224,6 +231,7 @@ back to `en_us`. Changes are picked up by `/onlinechat reload`.
 | `chatPageSize` | Messages per page: the initial replay on WebSocket connect and each "scroll up" request. |
 | `chatLogFile` | Append-only JSON Lines chat archive. |
 | `webDir` | Directory the bundled web front-end is **extracted to and kept up to date** (see below). |
+| `webForceReextract` | One-shot switch: set to `true`, restart, and the whole `webDir` is overwritten with the pristine bundled front-end (discarding customisations). The mod resets it to `false` afterwards. This replaces the old procedure of deleting the hidden `.exist` marker by hand. |
 
 #### Customising the web front-end (`webDir`)
 
@@ -241,8 +249,9 @@ the mod is upgraded:
   in the new release, a WARN lists it so you can merge the changes by hand.
 * `locales/*.json` read from disk are additionally **key-merged** with the bundled copy, so a
   customised translation never misses keys introduced by a newer version.
-* Delete `.exist` (or the whole directory) and restart to re-extract pristine defaults, overwriting
-  every file.
+* **Full reset**: set `webForceReextract = true` in the `[storage]` section and restart — every file
+  is overwritten with the pristine bundled copy and the switch resets itself. (Deleting `.exist` or
+  the whole directory and restarting still works as a manual fallback.)
 
 ### `[twoFactor]`
 

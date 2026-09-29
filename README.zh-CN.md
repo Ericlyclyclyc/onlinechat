@@ -49,7 +49,7 @@
 
 **1.20.1** 分支专属说明：
 
-* 构建会产出 **两个** jar：普通版 `onlinechat-1.20.1-neoforge-0.1.1-beta.jar` 与 `-all.jar`。
+* 构建会产出 **两个** jar：普通版 `onlinechat-1.20.1-neoforge-1.0.0.jar` 与 `-all.jar`。
   **请安装 `-all.jar`** —— 它通过 JarInJar 内置了 `netty-codec-http` 4.1.82；普通版只是中间构建产物，
   运行时会出现 `NoClassDefFoundError: HttpServerCodec` 崩溃。
 * MC 1.20.1 自带的 Netty 4.1.82 **不含** `netty-codec-http`（这正是 `-all.jar` 要内置它的原因）。
@@ -76,9 +76,11 @@
    ```powershell
    .\gradlew.bat build
    ```
+
    构建会产出两个 jar，请安装 **`-all.jar`**：
-   `build/libs/onlinechat-1.20.1-neoforge-0.1.1-beta-all.jar`
+   `build/libs/onlinechat-1.20.1-neoforge-1.0.0-all.jar`
    （其中内置了 `netty-codec-http` —— 见上方版本表）。
+
 3. **安装** 到你的 `mods/` 文件夹（服务端和/或客户端 —— Web 服务器只在逻辑服务端一侧启动）。
 4. **启动 Minecraft**（专用服务器，或开放到局域网的单人世界 —— 两者皆可）。
    Web 服务器默认监听 `https://0.0.0.0:8443/`。
@@ -127,7 +129,9 @@
 
 `0.0.2-alpha` 及更高版本改为注册四个具体的交互子类（`RightClickBlock` / `RightClickItem` /
 `EntityInteract` / `LeftClickBlock`），2FA 冻结依然能拦截所有交互，但不会再让服务器崩溃。如果你遇到
-该报错，把 jar 换成 `onlinechat-1.20.1-neoforge-0.1.1-beta-all.jar` 即可，无需迁移任何配置或数据。
+
+该报错，把 jar 换成 `onlinechat-1.20.1-neoforge-1.0.0-all.jar` 即可，无需迁移任何配置或数据。
+
 这些版本还新增了归档搜索、公告以及上面列出的网页聊天体验改进。
 
 ---
@@ -146,6 +150,7 @@
 | 游戏内为网页发送者显示橙色 `[Web Chat]` 前缀 | ✅ |
 | 网页上为游戏发送者显示绿色 `[In Game]` 前缀 | ✅ |
 | 可配置的非玩家消息桥接（加入/退出/死亡/进度） | ✅ |
+| 可开关的网页端连接/断开 system 消息（`webPresenceMessages`） | ✅ |
 | 拆分配置（`common` + `server` TOML 文件） | ✅ |
 | 独立登录 / 账号 / 聊天页面 | ✅ |
 | 账号页：绑定、修改密码、注销账号（自动解绑） | ✅ |

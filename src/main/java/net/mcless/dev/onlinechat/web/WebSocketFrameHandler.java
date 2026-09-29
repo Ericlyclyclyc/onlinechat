@@ -140,7 +140,7 @@ public class WebSocketFrameHandler extends SimpleChannelInboundHandler<WebSocket
         bridge.sendTo(ctx.channel(), hist);
 
         if (sessions.byUsername(acc.getUsername()).size() == 1) {
-            bridge.emitWebSystem(acc.getUsername() + " connected to the web chat");
+            bridge.emitWebPresence(acc.getUsername() + " connected to the web chat");
         }
         if (ServerConfig.VERBOSE_LOGGING.get()) {
             OnlineChat.LOGGER.info("[OnlineChat] Web user '{}' authenticated from {}", acc.getUsername(), session.remoteAddress);
@@ -155,7 +155,7 @@ public class WebSocketFrameHandler extends SimpleChannelInboundHandler<WebSocket
             String user = s.username;
             sessions.unregister(ctx.channel());
             if (wasAuth && !sessions.isUsernameOnline(user)) {
-                bridge.emitWebSystem(user + " disconnected from the web chat");
+                bridge.emitWebPresence(user + " disconnected from the web chat");
                 if (ServerConfig.VERBOSE_LOGGING.get()) {
                     OnlineChat.LOGGER.info("[OnlineChat] Web user '{}' disconnected", user);
                 }

@@ -242,7 +242,9 @@ Token 为 32 字节随机数（base64url）、一次性、与进服玩家的 UUI
 无需重新构建 jar：首次启动时，内置的 `web/` 目录会连同一个隐藏的 `.exist` 标记一起释放到
 `storage.webDir`（默认 `config/onlinechat/web`），静态文件 **磁盘优先**、jar 兜底（`WebAssets`）。
 直接编辑那里的文件；`.exist` 标记是一份 SHA-256 **清单**，因此后续升级时模组只会刷新你从未改动
-的文件、保留你的编辑，并对 `locales/*.json` 做键级合并。删除该标记即可重新释放原始默认文件。
+的文件、保留你的编辑，并对 `locales/*.json` 做键级合并。想要重新释放原始默认文件，把
+`[storage]` 节中的 `webForceReextract` 设为 `true`（一次性，模组会自行复位）—— 手动删除
+该标记仍然可用作后备方式。
 
 若要整体替换，用你自己的构建替换 `src/main/resources/web/*`。API 契约记录在
 [WEB_API.md](WEB_API.md) 中，并在补丁版本之间保持稳定。把 `index.html` 保留在

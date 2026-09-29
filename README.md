@@ -51,7 +51,7 @@ event, config and component APIs differ across the NeoForge lines):
 
 Branch-specific notes for **1.20.1**:
 
-* The build produces **two** jars: the plain `onlinechat-1.20.1-neoforge-0.1.1-beta.jar` and
+* The build produces **two** jars: the plain `onlinechat-1.20.1-neoforge-1.0.0.jar` and
   the `-all.jar`. **Install the `-all.jar`** — it embeds `netty-codec-http` 4.1.82 via JarInJar;
   the plain jar is only an intermediate build artifact and will crash with
   `NoClassDefFoundError: HttpServerCodec` at runtime.
@@ -79,9 +79,11 @@ Branch-specific notes for **1.20.1**:
    ```powershell
    .\gradlew.bat build
    ```
+
    Two jars are produced; install the **`-all.jar`**:
-   `build/libs/onlinechat-1.20.1-neoforge-0.1.1-beta-all.jar`
+   `build/libs/onlinechat-1.20.1-neoforge-1.0.0-all.jar`
    (it carries the embedded `netty-codec-http` — see the version table above).
+
 3. **Install** it into your `mods/` folder (server and/or client — the web server only
    starts on the logical server side).
 4. **Start Minecraft** (dedicated server or single-player world opened to LAN — both work).
@@ -132,7 +134,9 @@ The prefix text, colour and the whole line format are configurable — see
 `0.0.2-alpha` and newer register the four concrete interaction subclasses instead
 (`RightClickBlock` / `RightClickItem` / `EntityInteract` / `LeftClickBlock`), so the 2FA freeze still
 blocks every interaction without crashing the server. If you see that error, replace the jar with
-`onlinechat-1.20.1-neoforge-0.1.1-beta-all.jar` — no config or data migration is needed. These releases also
+
+`onlinechat-1.20.1-neoforge-1.0.0-all.jar` — no config or data migration is needed. These releases also
+
 add archive search, announcements and the web-chat UX improvements listed above.
 
 ---
@@ -151,6 +155,7 @@ add archive search, announcements and the web-chat UX improvements listed above.
 | Orange `[Web Chat]` prefix in game for web senders | ✅ |
 | Green `[In Game]` prefix on web for game senders | ✅ |
 | Configurable bridging of non-player messages (join/quit/death/advancement) | ✅ |
+| Switchable web connect/disconnect system messages (`webPresenceMessages`) | ✅ |
 | Split configuration (`common` + `server` TOML files) | ✅ |
 | Separate login / account / chat pages | ✅ |
 | Account page: bind, change password, delete account (auto-unbinds) | ✅ |

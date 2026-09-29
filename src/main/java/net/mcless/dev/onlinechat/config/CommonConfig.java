@@ -9,11 +9,17 @@ import java.util.List;
  * Stored in {@code config/onlinechat-common.toml}.
  */
 public class CommonConfig {
+    /** Schema version of this config file. Bump when keys are added, renamed or re-purposed. */
+    public static final int SCHEMA_VERSION = 2;
+
     private static final ForgeConfigSpec.Builder BUILDER = new ForgeConfigSpec.Builder();
 
+    public static final ForgeConfigSpec.IntValue CONFIG_VERSION;
     public static final ForgeConfigSpec.BooleanValue BRIDGE_ENABLED;
     public static final ForgeConfigSpec.BooleanValue BRIDGE_SYSTEM_MESSAGES;
     public static final ForgeConfigSpec.ConfigValue<List<? extends String>> SYSTEM_MESSAGE_KINDS;
+    public static final ForgeConfigSpec.BooleanValue WEB_PRESENCE_MESSAGES;
+    /** Deprecated alias of {@link #WEB_PRESENCE_MESSAGES} kept for upgrades; both must be true. */
     public static final ForgeConfigSpec.BooleanValue BRIDGE_JOIN_LEAVE;
 
     public static final ForgeConfigSpec.ConfigValue<String> WEB_PREFIX_TEXT;
@@ -29,6 +35,11 @@ public class CommonConfig {
     public static final ForgeConfigSpec SPEC;
 
     static {
+        CONFIG_VERSION = BUILDER
+                .comment("Schema version of this config file, written by the mod. Older versions trigger the",
+                        "built-in migration notice on start-up; do not edit by hand.")
+                .defineInRange("configVersion", SCHEMA_VERSION, 0, Integer.MAX_VALUE);
+
         BRIDGE_ENABLED = BUILDER
                 .comment("Master switch: bridge in-game chat to the web platform.")
                 .define("bridgeEnabled", true);
@@ -43,8 +54,15 @@ public class CommonConfig {
                         List.of("join", "quit", "death", "advancement"),
                         o -> o instanceof String s && List.of("join", "quit", "death", "advancement").contains(s));
 
+        WEB_PRESENCE_MESSAGES = BUILDER
+                .comment("Send a system message to the web chat when a web user connects to or disconnects",
+                        "from the WebSocket ('alice connected to the web chat' / 'alice disconnected ...').",
+                        "Turn this off to keep the web chat free of connect/disconnect noise.")
+                .define("webPresenceMessages", true);
+
         BRIDGE_JOIN_LEAVE = BUILDER
-                .comment("Broadcast a game-side chat line when a web user connects or disconnects from the WebSocket.")
+                .comment("Deprecated pre-1.0.0 name of webPresenceMessages; kept so existing configs keep their",
+                        "setting on upgrade. Presence messages are sent only when BOTH keys are true.")
                 .define("bridgeWebPresence", true);
 
         BUILDER.push("prefixes");

@@ -22,13 +22,17 @@ Online Chat 使用 **两个** 配置文件，二者都会在首次启动时以�
 ## `onlinechat-common.toml`
 
 ```toml
+# 本配置文件的模式版本，由模组写入。请勿手动修改。
+configVersion = 2
 # 总开关：把游戏内聊天桥接到网页平台。
 bridgeEnabled = true
 # 把非玩家聊天消息（加入、退出、死亡、进度）桥接到网页平台。
 bridgeSystemMessages = true
 # 应桥接哪些非玩家消息。有效值：join、quit、death、advancement。
 systemMessageKinds = ["join", "quit", "death", "advancement"]
-# 当网页用户连接或断开 WebSocket 时，在游戏侧广播一行聊天。
+# 网页用户连接/断开 WebSocket 时，向网页聊天发送一条 system 消息。
+webPresenceMessages = true
+# 1.0.0 之前 webPresenceMessages 的旧名字；两个键都为 true 时才会发送在线状态消息。
 bridgeWebPresence = true
 
 [prefixes]
@@ -80,6 +84,8 @@ bridgeWebPresence = true
 ## `onlinechat-server.toml`
 
 ```toml
+# 本配置文件的模式版本，由模组写入。请勿手动修改。
+configVersion = 2
 # 本模组在游戏内发送的所有文本（聊天提示、命令反馈）所使用的语言。
 # 可用 assets/onlinechat/lang/ 下的任意语言文件（en_us、zh_cn）。缺失的键回退到 en_us。
 language = "en_us"
@@ -122,6 +128,7 @@ httpPort = 8080
     chatPageSize = 30
     chatLogFile = "onlinechat/chat_history.jsonl"
     webDir = "config/onlinechat/web"
+    webForceReextract = false
 
 [twoFactor]
     enabled = false
@@ -219,6 +226,7 @@ TLS 材料通过两步定位。第一步，如果 `certChainPath` / `privateKeyP
 | `chatPageSize` | 每页消息数：WebSocket 连接时的首批重放，以及每次“向上滚动加载更多”的请求。 |
 | `chatLogFile` | 仅追加的 JSON Lines 聊天归档。 |
 | `webDir` | 随附的网页前端 **释放并保持更新** 的目录（见下文）。 |
+| `webForceReextract` | 一次性开关：设为 `true` 后重启，整个 `webDir` 会被原始内置前端整体覆写（放弃所有自定义）。模组随后自动把它复位为 `false`。它取代了旧的手动删除 `.exist` 标记的做法。 |
 
 #### 自定义网页前端（`webDir`）
 
@@ -233,7 +241,8 @@ TLS 材料通过两步定位。第一步，如果 `certChainPath` / `privateKeyP
   文件在新版本中也有变化，日志会以 WARN 列出，便于你手动合并。
 * 从磁盘读取的 `locales/*.json` 还会与 jar 内副本做 **键级合并**，自定义翻译不会缺少新版本
   新增的键。
-* 删除 `.exist`（或整个目录）后重启，即可重新释放原始默认文件并整体覆写。
+* **整体重置**：在 `[storage]` 中把 `webForceReextract` 设为 `true` 并重启 —— 所有文件都会被
+  原始内置副本覆写，开关随后自动复位。（手动删除 `.exist` 或整个目录再重启仍然可用作后备方式。）
 
 ### `[twoFactor]`
 

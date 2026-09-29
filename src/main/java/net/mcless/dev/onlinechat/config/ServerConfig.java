@@ -10,8 +10,12 @@ import java.util.List;
  * (that is also where the dedicated server reads it: {@code world/serverconfig/}).
  */
 public class ServerConfig {
+    /** Schema version of this config file. Bump when keys are added, renamed or re-purposed. */
+    public static final int SCHEMA_VERSION = 2;
+
     private static final ForgeConfigSpec.Builder BUILDER = new ForgeConfigSpec.Builder();
 
+    public static final ForgeConfigSpec.IntValue CONFIG_VERSION;
     public static final ForgeConfigSpec.ConfigValue<String> LANGUAGE;
 
     public static final ForgeConfigSpec.BooleanValue WEB_ENABLED;
@@ -44,6 +48,7 @@ public class ServerConfig {
     public static final ForgeConfigSpec.IntValue CHAT_PAGE_SIZE;
     public static final ForgeConfigSpec.ConfigValue<String> CHAT_LOG_FILE;
     public static final ForgeConfigSpec.ConfigValue<String> WEB_DIR;
+    public static final ForgeConfigSpec.BooleanValue WEB_FORCE_REEXTRACT;
 
     public static final ForgeConfigSpec.BooleanValue TWO_FACTOR_ENABLED;
     public static final ForgeConfigSpec.ConfigValue<String> TWO_FACTOR_PUBLIC_URL;
@@ -62,6 +67,11 @@ public class ServerConfig {
     public static final ForgeConfigSpec SPEC;
 
     static {
+        CONFIG_VERSION = BUILDER
+                .comment("Schema version of this config file, written by the mod. Older versions trigger the",
+                        "built-in migration notice on start-up; do not edit by hand.")
+                .defineInRange("configVersion", SCHEMA_VERSION, 0, Integer.MAX_VALUE);
+
         LANGUAGE = BUILDER
                 .comment("Language used for every in-game message this mod sends (chat prompts, command feedback).",
                         "The server renders the text itself so vanilla clients without the mod see it translated.",
@@ -197,9 +207,16 @@ public class ServerConfig {
         WEB_DIR = BUILDER
                 .comment("Directory the bundled web front-end (HTML/JS/CSS/locales) is extracted to on first start so it",
                         "can be customised. Relative paths resolve against the run directory. Files here are served in",
-                        "preference to the copies inside the jar. The extraction only happens when the hidden marker",
-                        "file '.exist' is missing from the directory; delete it to re-extract the pristine defaults.")
+                        "preference to the copies inside the jar. The extraction happens when the hidden marker file",
+                        "'.exist' is missing from the directory (or when webForceReextract is set).")
                 .define("webDir", "config/onlinechat/web");
+
+        WEB_FORCE_REEXTRACT = BUILDER
+                .comment("One-shot switch that OVERWRITES the extracted web front-end in webDir with the pristine",
+                        "bundled copy on the next start-up, discarding any customisations. Replaces the old procedure",
+                        "of deleting the hidden '.exist' marker by hand. The mod resets it to false afterwards.",
+                        "Turn it on, restart, and the web UI is back to factory defaults.")
+                .define("webForceReextract", false);
 
         BUILDER.pop();
 

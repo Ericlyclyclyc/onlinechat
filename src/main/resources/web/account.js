@@ -45,6 +45,34 @@
         document.getElementById('acc-joined').textContent = acc.createdAt ? OC.fmtDate(acc.createdAt) : '—';
         document.getElementById('acc-lastlogin').textContent = acc.lastLoginAt
             ? `${OC.fmtDate(acc.lastLoginAt)} · ${OC.fmtTime(acc.lastLoginAt)}` : '—';
+
+        // Real-name verification (statistics only; only shown when the server enables the switch).
+        const rnRow = document.getElementById('row-realname');
+        const rnEl = document.getElementById('acc-realname');
+        if (acc.realNameEnabled) {
+            rnRow.classList.remove('hidden');
+            rnEl.innerHTML = acc.realNameVerified
+                ? `<span class="badge ok"><span class="dot"></span>${OC.escapeHtml(OC.I18N.t('account.realName.verified'))}</span>`
+                : `<span class="badge"><span class="dot"></span>${OC.escapeHtml(OC.I18N.t('account.realName.unverified'))}</span>`;
+        } else {
+            rnRow.classList.add('hidden');
+        }
+
+        // Login history (IP + time), newest first.
+        const body = document.getElementById('logins-body');
+        const list = Array.isArray(acc.recentLogins) ? acc.recentLogins : [];
+        if (!list.length) {
+            body.innerHTML = `<p class="text-mute small">${OC.escapeHtml(OC.I18N.t('account.logins.empty'))}</p>`;
+        } else {
+            body.innerHTML = '';
+            for (const e of list) {
+                const div = document.createElement('div');
+                div.className = 'kv';
+                div.innerHTML = `<span class="k mono">${OC.escapeHtml(e.ip || '?')}</span>` +
+                    `<span class="v">${OC.escapeHtml(OC.fmtDate(e.ts) + ' · ' + OC.fmtTime(e.ts))}</span>`;
+                body.appendChild(div);
+            }
+        }
     }
 
     // ───────────── Current binding display ─────────────

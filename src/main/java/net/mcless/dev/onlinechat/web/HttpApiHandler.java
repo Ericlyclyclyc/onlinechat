@@ -255,6 +255,12 @@ public class HttpApiHandler extends SimpleChannelInboundHandler<FullHttpRequest>
         style.addProperty("minPasswordLength", ServerConfig.MIN_PASSWORD_LENGTH.get());
         o.add("style", style);
         o.addProperty("twoFactor", TwoFactorGuard.featureEnabled());
+        JsonObject realName = new JsonObject();
+        realName.addProperty("enabled", ServerConfig.REALNAME_ENABLED.get());
+        long[] rnStats = accounts.realNameStats();
+        realName.addProperty("verifiedCount", rnStats[0]);
+        realName.addProperty("totalCount", rnStats[1]);
+        o.add("realName", realName);
         sendJson(ctx, req, HttpResponseStatus.OK, o);
     }
 
@@ -303,6 +309,7 @@ public class HttpApiHandler extends SimpleChannelInboundHandler<FullHttpRequest>
                     return;
                 }
                 Account created = accounts.register(username, password);
+                accounts.recordLogin(created, registerIp);   // the registration itself is the first login
                 String token = tokens.issue(created.getUsername());
                 JsonObject o = new JsonObject();
                 o.addProperty("ok", true);
@@ -351,7 +358,7 @@ public class HttpApiHandler extends SimpleChannelInboundHandler<FullHttpRequest>
                     return;
                 }
                 LOGIN_LIMITER.recordSuccess(remoteIp);
-                accounts.touchLogin(acc);   // bumps lastLoginAt -> supersedes every previously issued token
+                accounts.recordLogin(acc, WebSessionManager.ipOf(remoteIp));   // history + lastLoginAt -> supersedes every previously issued token
                 // Single active web session: kick any other device currently signed in as this account.
                 // Their old token is now invalid (TokenService.validate) and this closes their live socket
                 // with a force_logout frame so the browser can explain why it was signed out.
@@ -410,8 +417,22 @@ public class HttpApiHandler extends SimpleChannelInboundHandler<FullHttpRequest>
         }
         o.addProperty("createdAt", acc.getCreatedAt());
         o.addProperty("lastLoginAt", acc.getLastLoginAt());
+        o.addProperty("lastLoginIp", acc.getLastLoginIp() == null ? "" : acc.getLastLoginIp());
         o.addProperty("twoFactorAvailable", TwoFactorGuard.featureEnabled());
         o.addProperty("twoFactor", acc.isTwoFactorEnabled());
+        o.addProperty("realNameEnabled", ServerConfig.REALNAME_ENABLED.get());
+        o.addProperty("realNameVerified", acc.isRealNameVerified());
+        o.addProperty("realNameVerifiedAt", acc.getRealNameVerifiedAt());
+        com.google.gson.JsonArray logins = new com.google.gson.JsonArray();
+        int shown = 0;
+        for (Account.LoginEntry e : acc.getLoginHistory()) {
+            if (shown++ >= 10) break;
+            com.google.gson.JsonObject le = new com.google.gson.JsonObject();
+            le.addProperty("ip", e.getIp() == null ? "" : e.getIp());
+            le.addProperty("ts", e.getTs());
+            logins.add(le);
+        }
+        o.add("recentLogins", logins);
         sendJson(ctx, req, HttpResponseStatus.OK, o);
     }
 

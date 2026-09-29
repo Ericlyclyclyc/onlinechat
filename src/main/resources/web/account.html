@@ -26,8 +26,15 @@
             <section class="bind-grid" id="section-info">
                 <h2 class="section-title" data-i18n="account.info.title">Account information</h2>
                 <div class="kv"><span class="k" data-i18n="login.username">Username</span><span class="v" id="info-username">—</span></div>
+                <div class="kv hidden" id="row-realname"><span class="k" data-i18n="account.realName">Real-name verification</span><span class="v" id="acc-realname">—</span></div>
                 <div class="kv"><span class="k" data-i18n="account.joined">Joined</span><span class="v" id="acc-joined">—</span></div>
                 <div class="kv"><span class="k" data-i18n="account.lastLogin">Last sign-in</span><span class="v" id="acc-lastlogin">—</span></div>
+            </section>
+
+            <!-- ───────── Login history ───────── -->
+            <section class="bind-grid mt-16" id="section-logins">
+                <h2 class="section-title" data-i18n="account.logins.title">Recent sign-ins</h2>
+                <div id="logins-body"><p class="text-mute small" data-i18n="account.logins.empty">No sign-ins recorded.</p></div>
             </section>
 
             <!-- ───────── Binding ───────── -->

@@ -53,6 +53,8 @@ public class ServerConfig {
     public static final ModConfigSpec.ConfigValue<String> TWO_FACTOR_PUBLIC_URL;
     public static final ModConfigSpec.IntValue TWO_FACTOR_TIMEOUT_SECONDS;
 
+    public static final ModConfigSpec.BooleanValue REALNAME_ENABLED;
+
     public static final ModConfigSpec.ConfigValue<List<? extends String>> ALLOWED_ORIGINS;
 
     public static final ModConfigSpec.IntValue MAX_CONNECTIONS_PER_IP;
@@ -236,6 +238,17 @@ public class ServerConfig {
         TWO_FACTOR_TIMEOUT_SECONDS = BUILDER
                 .comment("Seconds a frozen player has to complete the browser verification before being kicked.")
                 .defineInRange("timeoutSeconds", 120, 15, 600);
+
+        BUILDER.pop();
+
+        BUILDER.push("realName");
+
+        REALNAME_ENABLED = BUILDER
+                .comment("Real-name authentication support — STATISTICS ONLY. When enabled, web accounts carry a",
+                        "'real name verified' flag (set by an operator with /onlinechat account realname) plus a",
+                        "timestamp, and the mod counts verified accounts. Nothing is enforced and no identity",
+                        "documents are stored: this mod never blocks unverified users.")
+                .define("enabled", false);
 
         BUILDER.pop();
 

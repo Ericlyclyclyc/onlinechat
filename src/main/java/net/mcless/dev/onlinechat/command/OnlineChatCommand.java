@@ -1,6 +1,7 @@
 package net.mcless.dev.onlinechat.command;
 
 import com.mojang.brigadier.CommandDispatcher;
+import com.mojang.brigadier.arguments.BoolArgumentType;
 import com.mojang.brigadier.arguments.StringArgumentType;
 import com.mojang.brigadier.context.CommandContext;
 import net.mcless.dev.onlinechat.OnlineChat;
@@ -70,7 +71,16 @@ public class OnlineChatCommand {
                                                 .executes(OnlineChatCommand::accountSetPassword))))
                         .then(Commands.literal("delete")
                                 .then(Commands.argument("username", StringArgumentType.word())
-                                        .executes(OnlineChatCommand::accountDelete)))));
+                                        .executes(OnlineChatCommand::accountDelete)))
+                        .then(Commands.literal("logins")
+                                .then(Commands.argument("username", StringArgumentType.word())
+                                        .executes(OnlineChatCommand::accountLogins)))
+                        .then(Commands.literal("realname")
+                                .then(Commands.argument("username", StringArgumentType.word())
+                                        .then(Commands.argument("verified", BoolArgumentType.bool())
+                                                .executes(OnlineChatCommand::accountRealName))))
+                        .then(Commands.literal("realnameStats")
+                                .executes(OnlineChatCommand::accountRealNameStats))));
     }
 
     /** Sent by {@link BindingManager} when a web user requests a binding. */
@@ -276,6 +286,75 @@ public class OnlineChatCommand {
         String suffix = boundName == null ? "" : Lang.tr("onlinechat.command.account.deleted.unbound", boundName);
         ctx.getSource().sendSuccess(() -> prefix().append(
                 Lang.text("onlinechat.command.account.deleted", target.getUsername(), suffix).withStyle(ChatFormatting.GREEN)), true);
+        return 1;
+    }
+
+    /** {@code /onlinechat account logins <username>} — audit view of an account's login history (works for archived accounts too). */
+    private static int accountLogins(CommandContext<CommandSourceStack> ctx) {
+        OnlineChat runtime = OnlineChat.instance();
+        if (runtime == null) return 0;
+        String username = StringArgumentType.getString(ctx, "username");
+        Optional<Account> acc = runtime.getAccounts().recordByUsername(username);
+        if (acc.isEmpty()) {
+            ctx.getSource().sendFailure(prefix().append(Lang.text("onlinechat.command.account.notFound", username)));
+            return 0;
+        }
+        Account target = acc.get();
+        MutableComponent header = prefix().append(
+                Lang.text("onlinechat.command.account.logins.header", target.getUsername(),
+                        target.isDeleted() ? Lang.tr("onlinechat.command.account.logins.archived") : "").withStyle(ChatFormatting.YELLOW));
+        ctx.getSource().sendSuccess(() -> header, false);
+        var history = target.getLoginHistory();
+        if (history.isEmpty()) {
+            ctx.getSource().sendSuccess(() -> prefix().append(
+                    Lang.text("onlinechat.command.account.logins.empty").withStyle(ChatFormatting.GRAY)), false);
+            return 1;
+        }
+        java.text.SimpleDateFormat fmt = new java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
+        for (int i = 0; i < Math.min(history.size(), 15); i++) {
+            Account.LoginEntry e = history.get(i);
+            String time = fmt.format(new java.util.Date(e.getTs()));
+            ctx.getSource().sendSuccess(() -> Component.literal("  ").withStyle(ChatFormatting.GRAY)
+                    .append(Lang.text("onlinechat.command.account.logins.entry", time, e.getIp() == null ? "?" : e.getIp())
+                            .withStyle(ChatFormatting.WHITE)), false);
+        }
+        return 1;
+    }
+
+    /** {@code /onlinechat account realname <username> <true|false>} — marks real-name verification (statistics only). */
+    private static int accountRealName(CommandContext<CommandSourceStack> ctx) {
+        OnlineChat runtime = OnlineChat.instance();
+        if (runtime == null) return 0;
+        if (!ServerConfig.REALNAME_ENABLED.get()) {
+            ctx.getSource().sendFailure(prefix().append(Lang.text("onlinechat.command.account.realname.disabled")));
+            return 0;
+        }
+        String username = StringArgumentType.getString(ctx, "username");
+        boolean verified = BoolArgumentType.getBool(ctx, "verified");
+        Optional<Account> acc = runtime.getAccounts().byUsername(username);
+        if (acc.isEmpty()) {
+            ctx.getSource().sendFailure(prefix().append(Lang.text("onlinechat.command.account.notFound", username)));
+            return 0;
+        }
+        runtime.getAccounts().recordRealName(acc.get(), verified);
+        ctx.getSource().sendSuccess(() -> prefix().append(
+                Lang.text("onlinechat.command.account.realname.set", username,
+                        Lang.tr(verified ? "onlinechat.command.account.realname.true" : "onlinechat.command.account.realname.false"))
+                        .withStyle(ChatFormatting.GREEN)), true);
+        return 1;
+    }
+
+    /** {@code /onlinechat account realnameStats} — how many active accounts are real-name verified. */
+    private static int accountRealNameStats(CommandContext<CommandSourceStack> ctx) {
+        OnlineChat runtime = OnlineChat.instance();
+        if (runtime == null) return 0;
+        if (!ServerConfig.REALNAME_ENABLED.get()) {
+            ctx.getSource().sendFailure(prefix().append(Lang.text("onlinechat.command.account.realname.disabled")));
+            return 0;
+        }
+        long[] stats = runtime.getAccounts().realNameStats();
+        ctx.getSource().sendSuccess(() -> prefix().append(
+                Lang.text("onlinechat.command.account.realname.stats", stats[0], stats[1]).withStyle(ChatFormatting.AQUA)), false);
         return 1;
     }
 

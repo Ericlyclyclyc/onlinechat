@@ -23,13 +23,21 @@ import java.util.regex.Pattern;
 
 /**
  * JSON-backed account storage. Kept in memory, flushed to disk after every mutation.
+ * Deleted accounts are never removed from storage: they are flagged (see {@link Account#markDeleted})
+ * and excluded from every active-account lookup, keeping the record for later audit.
  */
 public class AccountManager {
     public static final Pattern USERNAME_PATTERN = Pattern.compile("^[A-Za-z0-9_]{3,32}$");
+    /** How many login-history entries are kept per account. */
+    public static final int MAX_LOGIN_HISTORY = 50;
     private static final Gson GSON = new GsonBuilder().setPrettyPrinting().create();
 
     private final Path storageFile;
+    /** Every record ever stored, including deleted ones (insertion order). */
+    private final List<Account> records = new ArrayList<>();
+    /** Active accounts only, keyed by lowercase username. */
     private final ConcurrentMap<String, Account> byUsername = new ConcurrentHashMap<>();
+    /** Active bindings only: player UUID -> username. */
     private final ConcurrentMap<UUID, String> usernameByPlayerUuid = new ConcurrentHashMap<>();
     private final Object writeLock = new Object();
 
@@ -65,21 +73,29 @@ public class AccountManager {
         }
     }
 
-    /** Attempts to parse {@code file} into the in-memory maps. Returns false on any failure or empty parse. */
+    /** Attempts to parse {@code file} into the in-memory records and index maps. Returns false on any failure or empty parse. */
     private boolean tryLoad(Path file) {
         try {
             Account[] list = GSON.fromJson(Files.readString(file, StandardCharsets.UTF_8), Account[].class);
             if (list == null) return false;
+            records.clear();
             byUsername.clear();
             usernameByPlayerUuid.clear();
+            int active = 0, deleted = 0;
             for (Account a : list) {
                 if (a == null || a.getUsername() == null) continue;
+                records.add(a);
+                if (a.isDeleted()) {
+                    deleted++;
+                    continue;   // archived record: kept for audit, invisible to active lookups
+                }
+                active++;
                 byUsername.put(a.getUsername().toLowerCase(Locale.ROOT), a);
                 if (a.getBoundPlayerUuid() != null) {
                     usernameByPlayerUuid.put(a.getBoundPlayerUuid(), a.getUsername());
                 }
             }
-            OnlineChat.LOGGER.info("[OnlineChat] Loaded {} web account(s) from {}", byUsername.size(), file);
+            OnlineChat.LOGGER.info("[OnlineChat] Loaded {} web account(s) from {} ({} active, {} archived)", active + deleted, file, active, deleted);
             return true;
         } catch (Exception e) {
             return false;
@@ -92,7 +108,7 @@ public class AccountManager {
                 if (storageFile.getParent() != null) {
                     Files.createDirectories(storageFile.getParent());
                 }
-                List<Account> all = new ArrayList<>(byUsername.values());
+                List<Account> all = new ArrayList<>(records);
                 Path tmp = storageFile.resolveSibling(storageFile.getFileName() + ".tmp");
                 Files.writeString(tmp, GSON.toJson(all), StandardCharsets.UTF_8);
                 restrictPermissions(tmp);
@@ -158,6 +174,7 @@ public class AccountManager {
         int iterations = ServerConfig.PBKDF2_ITERATIONS.get();
         String hash = PasswordHasher.hash(rawPassword, salt, iterations);
         Account account = new Account(username, hash, salt, iterations);
+        records.add(account);
         byUsername.put(normalized, account);
         save();
         return account;
@@ -212,16 +229,59 @@ public class AccountManager {
         save();
     }
 
-    /** Removes the account and its player binding. Returns true if it existed. */
+    /**
+     * Archives the account instead of removing it: the player binding is severed (UUID and
+     * username are unlinked), credentials are scrubbed, and the record — including its login
+     * history — stays on disk for later audit. The username becomes available for re-registration.
+     * Returns true if the account existed and was active.
+     */
     public boolean delete(Account account) {
-        if (account == null || account.getUsername() == null) return false;
+        if (account == null || account.getUsername() == null || account.isDeleted()) return false;
         String normalized = account.getUsername().toLowerCase(Locale.ROOT);
         Account removed = byUsername.remove(normalized);
         if (removed == null) return false;
         UUID uuid = removed.getBoundPlayerUuid();
         if (uuid != null) usernameByPlayerUuid.remove(uuid, removed.getUsername());
+        removed.markDeleted(System.currentTimeMillis());
         save();
         return true;
+    }
+
+    /** Records a successful login (IP + time) on the account. */
+    public void recordLogin(Account account, String ip) {
+        account.recordLogin(ip, System.currentTimeMillis(), MAX_LOGIN_HISTORY);
+        save();
+    }
+
+    /** Sets the real-name verification flag (statistics only — never enforced). */
+    public void recordRealName(Account account, boolean verified) {
+        account.setRealNameVerified(verified, System.currentTimeMillis());
+        save();
+    }
+
+    /**
+     * Looks a record up by username INCLUDING archived (deleted) accounts — used by admin audit
+     * commands. The most recently created record wins when the name has been re-registered.
+     */
+    public Optional<Account> recordByUsername(String username) {
+        if (username == null) return Optional.empty();
+        String needle = username.toLowerCase(Locale.ROOT);
+        for (int i = records.size() - 1; i >= 0; i--) {
+            Account a = records.get(i);
+            if (a != null && needle.equals(a.getUsername().toLowerCase(Locale.ROOT))) return Optional.of(a);
+        }
+        return Optional.empty();
+    }
+
+    /** Verified / active counts for the real-name statistics. */
+    public long[] realNameStats() {
+        long total = 0, verified = 0;
+        for (Account a : records) {
+            if (a == null || a.isDeleted()) continue;
+            total++;
+            if (a.isRealNameVerified()) verified++;
+        }
+        return new long[] { verified, total };
     }
 
     public void touchLogin(Account account) {

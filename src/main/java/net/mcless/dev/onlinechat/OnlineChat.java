@@ -23,6 +23,7 @@ import net.neoforged.bus.api.SubscribeEvent;
 import net.neoforged.fml.ModContainer;
 import net.neoforged.fml.common.Mod;
 import net.neoforged.fml.config.ModConfig;
+import net.neoforged.fml.config.ModConfigs;
 import net.neoforged.neoforge.common.NeoForge;
 import net.neoforged.neoforge.event.RegisterCommandsEvent;
 import net.neoforged.neoforge.event.server.ServerStartedEvent;
@@ -107,10 +108,47 @@ public class OnlineChat {
         NeoForge.EVENT_BUS.register(bridge);
         NeoForge.EVENT_BUS.register(twoFactor);
 
+        logConfigVersions();
+
+        boolean forceReextract = ServerConfig.WEB_FORCE_REEXTRACT.get();
         this.webAssets = new WebAssets(resolvePath(runDirectory, ServerConfig.WEB_DIR.get()));
-        this.webAssets.extractIfNeeded();
+        this.webAssets.extractIfNeeded(forceReextract);
+        if (forceReextract) {
+            // One-shot switch: it already did its job, reset it so the next start is a normal upgrade.
+            ServerConfig.WEB_FORCE_REEXTRACT.set(false);
+            saveServerConfig();
+        }
 
         this.webServer = new WebServer(runDirectory, accounts, tokens, bindings, bridge, sessions, twoFactor, webAssets);
+    }
+
+    /** Persists the in-memory server config back to onlinechat-server.toml (FML 4 / NeoForge 21.1 API). */
+    private static void saveServerConfig() {
+        try {
+            for (ModConfig cfg : ModConfigs.getModConfigs(MODID)) {
+                if (cfg.getType() == ModConfig.Type.SERVER && cfg.getSpec() == ServerConfig.SPEC) {
+                    cfg.getLoadedConfig().save();
+                    return;
+                }
+            }
+            LOGGER.warn("[OnlineChat] Could not locate the server config to persist the webForceReextract reset");
+        } catch (Exception e) {
+            LOGGER.warn("[OnlineChat] Could not persist the webForceReextract reset", e);
+        }
+    }
+
+    /** Logs a notice when a config file was written by an older schema version (NeoForge fills missing keys with defaults). */
+    private static void logConfigVersions() {
+        int common = CommonConfig.CONFIG_VERSION.get();
+        if (common < CommonConfig.SCHEMA_VERSION) {
+            LOGGER.warn("[OnlineChat] onlinechat-common.toml has schema v{} (current: v{}); missing keys were migrated to their defaults",
+                    common, CommonConfig.SCHEMA_VERSION);
+        }
+        int server = ServerConfig.CONFIG_VERSION.get();
+        if (server < ServerConfig.SCHEMA_VERSION) {
+            LOGGER.warn("[OnlineChat] onlinechat-server.toml has schema v{} (current: v{}); missing keys were migrated to their defaults",
+                    server, ServerConfig.SCHEMA_VERSION);
+        }
     }
 
     @SubscribeEvent

@@ -247,7 +247,9 @@ to `storage.webDir` (default `config/onlinechat/web`) together with a hidden `.e
 marker, and static files are served **disk-first** with the jar as fallback
 (`WebAssets`). Edit the files there; the `.exist` marker is a SHA-256 **manifest**, so on a
 later upgrade the mod refreshes only files you never touched, keeps your edits, and
-key-merges `locales/*.json`. Delete the marker to re-extract pristine defaults.
+key-merges `locales/*.json`. To re-extract pristine defaults set `webForceReextract = true`
+in the `[storage]` section (one-shot; the mod resets it) — deleting the marker still works
+as a manual fallback.
 
 For a full replacement, swap `src/main/resources/web/*` for your own build. The API
 contract is documented in [WEB_API.md](WEB_API.md) and stable across patch releases.
